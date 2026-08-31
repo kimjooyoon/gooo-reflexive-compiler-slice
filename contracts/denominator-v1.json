@@ -1,0 +1,23 @@
+{
+  "schema": "gooo/reflexive-compiler-denominator/v1",
+  "phase_id": "reflexive.normalize.v1",
+  "precedence": ["REFUTED", "UNKNOWN", "CLOSED"],
+  "unknown_fields": ["stage", "step", "reason", "unknown_class", "next_operation", "blocked_by"],
+  "cases": [
+    {
+      "id": "CLOSED_CANONICAL_INPUT",
+      "source": "examples/cases/closed.gooo",
+      "expected": "CLOSED"
+    },
+    {
+      "id": "UNKNOWN_MISSING_REQUIRED_ENTITY",
+      "source": "examples/cases/unknown.gooo",
+      "expected": "UNKNOWN"
+    },
+    {
+      "id": "REFUTED_DUPLICATE_STABLE_ID",
+      "source": "examples/cases/refuted.gooo",
+      "expected": "REFUTED"
+    }
+  ]
+}
