@@ -30,7 +30,15 @@ jobs:
       - name: Bind release subject
         env:
           EXPECTED_SHA: ${{ inputs.expected_sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+        run: |
+          tag_ref=$(git ls-remote --tags origin refs/tags/v0.1.0)
+          if [ -n "$tag_ref" ]; then
+            git fetch origin refs/tags/v0.1.0:refs/tags/v0.1.0
+            test "$(git rev-list -n 1 'v0.1.0^{}')" = "$EXPECTED_SHA"
+            git checkout --detach "$EXPECTED_SHA"
+          else
+            test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          fi
 
       - name: Refuse existing immutable state
         env:

@@ -51,9 +51,10 @@ failure.
 
 The release workflow is fail-closed. If a previous publish attempt has already
 created an annotated tag but no release, recovery verifies that the tag resolves
-to the exact requested main SHA and publishes against that tag without changing
-the tag. An existing release, wrong tag target, or checksum mismatch stops the
-workflow; no tag or release is deleted or overwritten.
+to the exact requested release SHA and publishes against that tag without
+changing the tag. A new tag uses the current main SHA; an existing release,
+wrong tag target, or checksum mismatch stops the workflow. No tag or release is
+deleted or overwritten.
 
 ## Claims intentionally not made
 
