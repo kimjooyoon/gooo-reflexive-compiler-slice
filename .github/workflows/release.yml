@@ -1,0 +1,121 @@
+name: Immutable v0.1.0 release
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact merged main commit to release
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact merged commit
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Go 1.27
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.x'
+
+      - name: Bind release subject
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Refuse existing immutable state
+        run: |
+          test -z "$(git ls-remote --tags origin refs/tags/v0.1.0)"
+          ! gh release view v0.1.0 --json id >/dev/null 2>&1
+
+      - name: Gofmt, vet, build, and test
+        run: |
+          test -z "$(gofmt -l $(git ls-files '*.go'))"
+          go vet ./...
+          mkdir -p .ci/bin
+          go build -trimpath -o .ci/bin/gooo-reflexive-compiler-slice ./cmd/gooo-reflexive-compiler-slice
+          go build -trimpath -o .ci/bin/gooo-reflexive-verify ./cmd/gooo-reflexive-verify
+          go test ./...
+
+      - name: Re-run released-input conformance
+        run: |
+          started=$(date +%s%3N)
+          CONFORMANCE_START_MS="$started" bash ./scripts/conformance.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
+          ./scripts/write-metrics.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" "$GITHUB_WORKSPACE/.ci/ci-metrics.json"
+
+      - name: Assemble immutable assets
+        id: assets
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ci/release
+          git archive --format=tar.gz --prefix=gooo-reflexive-compiler-slice-v0.1.0/ "$EXPECTED_SHA" > .ci/release/gooo-reflexive-compiler-slice-source-v0.1.0.tar.gz
+          tar -czf .ci/release/gooo-reflexive-compiler-slice-linux-amd64-v0.1.0.tar.gz -C .ci/bin gooo-reflexive-compiler-slice
+          jq -n --arg schema "gooo/reflexive-release-report/v1" --arg commit "$EXPECTED_SHA" \
+            --slurpfile upstream .ci/upstream/report.json --slurpfile conformance .ci/conformance-report.json \
+            --slurpfile metrics .ci/ci-metrics.json \
+            '{schema:$schema,version:"0.1.0",tag:"v0.1.0",commit:$commit,scope:"ONE_COMPILER_PHASE_ONLY",upstream:$upstream[0],conformance:$conformance[0],metrics:$metrics[0]}' \
+            > .ci/release/release-report-v0.1.0.json
+          jq -n --arg schema "gooo/reflexive-release/v1" --arg commit "$EXPECTED_SHA" \
+            '{schema:$schema,version:"0.1.0",tag:"v0.1.0",commit:$commit,phase:"reflexive.normalize.v1",scope:"ONE_COMPILER_PHASE_ONLY",self_hosting:"NOT_MADE",external_utility:"UNKNOWN",global_self_hosting:"UNKNOWN"}' \
+            > .ci/release/version.json
+          source_digest=$(sha256sum .ci/release/gooo-reflexive-compiler-slice-source-v0.1.0.tar.gz | awk '{print "sha256:" $1}')
+          binary_digest=$(sha256sum .ci/release/gooo-reflexive-compiler-slice-linux-amd64-v0.1.0.tar.gz | awk '{print "sha256:" $1}')
+          report_digest=$(sha256sum .ci/release/release-report-v0.1.0.json | awk '{print "sha256:" $1}')
+          version_digest=$(sha256sum .ci/release/version.json | awk '{print "sha256:" $1}')
+          jq -n --arg schema "gooo/reflexive-release-manifest/v1" --arg commit "$EXPECTED_SHA" \
+            --arg source "$source_digest" --arg binary "$binary_digest" --arg report "$report_digest" --arg version "$version_digest" \
+            '{schema:$schema,version:"0.1.0",tag:"v0.1.0",commit:$commit,assets:[{name:"gooo-reflexive-compiler-slice-source-v0.1.0.tar.gz",digest:$source},{name:"gooo-reflexive-compiler-slice-linux-amd64-v0.1.0.tar.gz",digest:$binary},{name:"release-report-v0.1.0.json",digest:$report},{name:"version.json",digest:$version}]}' \
+            > .ci/release/release-manifest-v0.1.0.json
+          (cd .ci/release && sha256sum \
+            gooo-reflexive-compiler-slice-source-v0.1.0.tar.gz \
+            gooo-reflexive-compiler-slice-linux-amd64-v0.1.0.tar.gz \
+            release-report-v0.1.0.json version.json release-manifest-v0.1.0.json) \
+            > SHA256SUMS
+          (cd .ci/release && sha256sum -c SHA256SUMS)
+          jq -e --arg source "$source_digest" --arg binary "$binary_digest" --arg report "$report_digest" --arg version "$version_digest" '
+            [.assets[] | .digest] == [$source,$binary,$report,$version]
+          ' .ci/release/release-manifest-v0.1.0.json
+          test "$(wc -l < .ci/release/SHA256SUMS | tr -d ' ')" -eq 5
+          test "$(find .ci/release -maxdepth 1 -type f | wc -l | tr -d ' ')" -eq 6
+
+      - name: Create annotated tag exactly once
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          git tag -a v0.1.0 "$EXPECTED_SHA" -m "gooo-reflexive-compiler-slice v0.1.0"
+          git push origin refs/tags/v0.1.0
+
+      - name: Publish immutable release exactly once
+        run: |
+          gh release create v0.1.0 \
+            --title 'gooo-reflexive-compiler-slice v0.1.0' \
+            --notes 'Immutable evidence-bounded release. Scope is ONE_COMPILER_PHASE_ONLY; global self-hosting and external utility remain UNKNOWN/NOT_MADE.' \
+            .ci/release/gooo-reflexive-compiler-slice-source-v0.1.0.tar.gz \
+            .ci/release/gooo-reflexive-compiler-slice-linux-amd64-v0.1.0.tar.gz \
+            .ci/release/release-report-v0.1.0.json \
+            .ci/release/version.json \
+            .ci/release/release-manifest-v0.1.0.json \
+            .ci/release/SHA256SUMS
+          gh release view v0.1.0 --json isDraft,isPrerelease,assets,tagName --jq '
+            .isDraft == false and .isPrerelease == false and .tagName == "v0.1.0" and
+            ([.assets[].name] | sort) == ([
+              "SHA256SUMS",
+              "gooo-reflexive-compiler-slice-linux-amd64-v0.1.0.tar.gz",
+              "gooo-reflexive-compiler-slice-source-v0.1.0.tar.gz",
+              "release-manifest-v0.1.0.json",
+              "release-report-v0.1.0.json",
+              "version.json"
+            ] | sort)'

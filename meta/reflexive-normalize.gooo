@@ -1,0 +1,11 @@
+package reflexive
+namespace reflexive
+
+entity SourceGraph id "gooo://reflexive/compiler/source-graph"
+entity SemanticIR id "gooo://reflexive/compiler/semantic-ir"
+entity GeneratedBackend id "gooo://reflexive/compiler/generated-backend"
+entity Evidence id "gooo://reflexive/compiler/evidence"
+
+activity NormalizeSource(SourceGraph) -> SemanticIR computes "reflexive.normalize:v1;input=GOOO;declarations=entity,activity;stable_id=declared-or-namespace-activity-name;normal_form=sort-by-stable-id;duplicate=REFUTED;missing=UNKNOWN;required_entity=gooo://reflexive/input/required"
+activity EmitBackend(SemanticIR) -> GeneratedBackend computes "reflexive.backend-go:v1;authority=SOURCE_GOOO_GRAPH;artifact=BACKEND_ONLY;binding=semantic-ir"
+activity VerifyReplay(SemanticIR) -> Evidence computes "reflexive.replay:v1;input=GENERATED_SEMANTIC_IR;compare=CANONICAL_DIGEST;rollback=RETAIN_BASELINE"

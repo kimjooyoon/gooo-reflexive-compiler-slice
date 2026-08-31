@@ -1,0 +1,7 @@
+package reflexive_input
+namespace reflexive_input
+
+entity RequiredNode id "gooo://reflexive/input/required"
+entity FirstNode id "gooo://reflexive/input/duplicate"
+entity SecondNode id "gooo://reflexive/input/duplicate"
+activity ZetaTask(FirstNode) -> RequiredNode
