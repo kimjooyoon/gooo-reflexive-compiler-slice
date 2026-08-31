@@ -42,7 +42,8 @@ physical lines, files, subdirectories, output files/bytes, peak RSS, compile,
 build, test, and conformance wall milliseconds, plus test totals/executed,
 reused, failed, and unknown.
 
-The `v0.1.0` workflow is manual and main-bound. It refuses an existing tag or
-release, creates an annotated tag once, publishes six exact assets, and ships
+The `v0.1.0` workflow is manual and main-bound. It refuses an existing release,
+creates an annotated tag once when absent, or verifies and reuses an exact
+pre-existing tag without modifying it. It publishes six exact assets and ships
 `SHA256SUMS`. A partial failure is left for inspection; tags and releases are
 never deleted or overwritten by the workflow.
