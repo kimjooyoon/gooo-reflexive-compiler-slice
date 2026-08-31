@@ -1,0 +1,76 @@
+name: Conformance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact subject
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go 1.27
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.x'
+
+      - name: Gofmt
+        run: test -z "$(gofmt -l $(git ls-files '*.go'))"
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Build and measure
+        run: mkdir -p .ci/bin && ./scripts/measure-command.sh .ci/timing/build.json -- go build -trimpath -o .ci/bin/gooo-reflexive-compiler-slice ./cmd/gooo-reflexive-compiler-slice
+
+      - name: Build independent verifier
+        run: go build -trimpath -o .ci/bin/gooo-reflexive-verify ./cmd/gooo-reflexive-verify
+
+      - name: Test and measure
+        run: ./scripts/measure-command.sh .ci/timing/test.json -- go test ./...
+
+      - name: Released-input conformance
+        run: |
+          started=$(date +%s%3N)
+          CONFORMANCE_START_MS="$started" bash ./scripts/conformance.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
+
+      - name: Write exact integer metrics
+        run: ./scripts/write-metrics.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" "$GITHUB_WORKSPACE/.ci/ci-metrics.json"
+
+      - name: Assert evidence is complete
+        run: |
+          jq -e '
+            (.inventory.go_files | type == "number" and floor == .) and
+            (.inventory.gooo_files | type == "number" and floor == .) and
+            (.inventory.go_physical_lines | type == "number" and floor == .) and
+            (.inventory.gooo_physical_lines | type == "number" and floor == .) and
+            (.inventory.files_total | type == "number" and floor == .) and
+            (.inventory.subdirectories | type == "number" and floor == .) and
+            (.inventory.root_readme_inventory_excluded == 1) and
+            (.outputs.count | type == "number" and floor == .) and
+            (.outputs.bytes | type == "number" and floor == .) and
+            (.resources.peak_rss_bytes | type == "number" and floor == .) and
+            (.wall_ms.compile | type == "number" and floor == .) and
+            (.wall_ms.build | type == "number" and floor == .) and
+            (.wall_ms.test | type == "number" and floor == .) and
+            (.wall_ms.conformance | type == "number" and floor == .) and
+            (.tests.total == 3 and .tests.executed == 3 and .tests.reused == 0 and .tests.failed == 0 and .tests.unknown == 1)
+          ' .ci/ci-metrics.json
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reflexive-conformance-${{ github.sha }}
+          path: .ci
