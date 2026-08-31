@@ -42,9 +42,9 @@ jobs:
           test -z "$(gofmt -l $(git ls-files '*.go'))"
           go vet ./...
           mkdir -p .ci/bin
-          go build -trimpath -o .ci/bin/gooo-reflexive-compiler-slice ./cmd/gooo-reflexive-compiler-slice
+          ./scripts/measure-command.sh .ci/timing/build.json -- go build -trimpath -o .ci/bin/gooo-reflexive-compiler-slice ./cmd/gooo-reflexive-compiler-slice
           go build -trimpath -o .ci/bin/gooo-reflexive-verify ./cmd/gooo-reflexive-verify
-          go test ./...
+          ./scripts/measure-command.sh .ci/timing/test.json -- go test ./...
 
       - name: Re-run released-input conformance
         run: |
