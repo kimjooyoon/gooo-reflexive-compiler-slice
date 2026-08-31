@@ -67,8 +67,8 @@ func Compile(options CompileOptions) (Receipt, error) {
 		return Receipt{}, err
 	}
 
-	unknowns := []Unknown{}
-	refutations := []Refutation{}
+	unknowns := append([]Unknown(nil), phase.GraphUnknowns...)
+	refutations := append([]Refutation(nil), phase.GraphRefutations...)
 	namespace := "unknown"
 	declarations := []Declaration{}
 	if options.InputKind == "source" {

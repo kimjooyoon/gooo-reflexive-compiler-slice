@@ -2,10 +2,12 @@
 
 This repository demonstrates one bounded compiler phase, and only one:
 `ONE_COMPILER_PHASE_ONLY`. The phase declared in
-[`meta/reflexive-normalize.gooo`](meta/reflexive-normalize.gooo) reads a Gooo
-source graph, normalizes its semantic declarations into a canonical semantic
-IR, and emits Go only as a derived backend artifact. The next execution reads
-the first execution's generated semantic IR; it does not silently reread the
+[`meta/reflexive-normalize.gooo`](meta/reflexive-normalize.gooo) owns the phase
+graph. The current v2 graph supports the released three-activity topology and
+the trial's four-activity split (`ParseSource` → `ValidateStableIDs` →
+backend/replay), normalizes a Gooo source graph into canonical semantic IR, and
+emits Go only as a derived backend artifact. The next execution reads the
+first execution's generated semantic IR; it does not silently reread the
 source.
 
 The Go implementation interprets the operation programs declared by that
@@ -25,7 +27,10 @@ Only immutable releases listed in
 [`contracts/upstream-lock-v1.json`](contracts/upstream-lock-v1.json) are used
 as upstream inputs. The released `meta-ontology-go` CLI checks the phase graph
 in CI, while the other two released producer assets are checksum-bound inputs.
-No mutable upstream branch is consumed.
+The immutable evolution-trial release is separately locked in
+[`contracts/evolution-trial-lock-v1.json`](contracts/evolution-trial-lock-v1.json)
+and its candidate split is mechanically applied in CI. No mutable upstream
+branch is consumed.
 
 The project does not claim whole-language self-hosting, external utility, or a
 global self-improvement result. Those remain `NOT_MADE` or `UNKNOWN` outside
@@ -37,10 +42,14 @@ counts.
 
 GitHub Actions is the verification authority. It runs Go 1.27, format, vet,
 build, tests, immutable upstream checks, the three-case conformance run, and
-the independent verifier. It records integer counts for Go/Gooo files and
-physical lines, files, subdirectories, output files/bytes, peak RSS, compile,
-build, test, and conformance wall milliseconds, plus test totals/executed,
-reused, failed, and unknown.
+the independent verifier, and the locked evolution-trial follow-up. It records
+integer counts for Go/Gooo files and physical lines, files, subdirectories,
+output files/bytes, peak RSS, compile, build, test, conformance, and integration
+wall milliseconds, plus test totals/executed, reused, failed, and unknown. The
+follow-up closes the released `REFUTED` counterexample only for this phase,
+with exact resolution pairs `1→2` valid topologies, `0→3` accepted trial
+cases, and `1→2` localization stages under equal source, contract, and
+toolchain digests.
 
 The historical `v0.1.0` release is preserved as-is and is explicitly
 non-durable (`immutable=false` in the GitHub release API); it is never reused
