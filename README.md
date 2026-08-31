@@ -42,8 +42,14 @@ physical lines, files, subdirectories, output files/bytes, peak RSS, compile,
 build, test, and conformance wall milliseconds, plus test totals/executed,
 reused, failed, and unknown.
 
-The `v0.1.0` workflow is manual and main-bound. It refuses an existing release,
-creates an annotated tag once when absent, or verifies and reuses an exact
-pre-existing tag without modifying it. It publishes six exact assets and ships
-`SHA256SUMS`. A partial failure is left for inspection; tags and releases are
-never deleted or overwritten by the workflow.
+The historical `v0.1.0` release is preserved as-is and is explicitly
+non-durable (`immutable=false` in the GitHub release API); it is never reused
+or modified. The manual, main-bound release workflow defaults to the new
+`v0.1.1` version and requires the repository's immutable-releases setting to be
+enabled through GitHub's official API before publication. It refuses an
+existing tag or release, creates one annotated tag for the requested unused
+version, publishes six exact assets with `SHA256SUMS`, and then fails closed
+unless the REST release object reports `immutable=true`, the tag object and
+target match, and every asset name, size, and digest matches the staged files.
+A partial failure is left for inspection; tags and releases are never deleted,
+overwritten, or reused.
