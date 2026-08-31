@@ -49,6 +49,12 @@ file inventory. The three fixed semantic cases are executed afresh, so reuse is
 zero; the one UNKNOWN case is counted under `tests.unknown` and is not a test
 failure.
 
+The release workflow is fail-closed. If a previous publish attempt has already
+created an annotated tag but no release, recovery verifies that the tag resolves
+to the exact requested main SHA and publishes against that tag without changing
+the tag. An existing release, wrong tag target, or checksum mismatch stops the
+workflow; no tag or release is deleted or overwritten.
+
 ## Claims intentionally not made
 
 The release reports `ONE_COMPILER_PHASE_ONLY`. It does not claim that Gooo
