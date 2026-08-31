@@ -1,0 +1,111 @@
+{
+  "schema": "gooo/reflexive-compiler-evolution-trial-lock/v1",
+  "trial": {
+    "repository": "kimjooyoon/gooo-evolution-trial",
+    "tag": "v0.1.0",
+    "release_id": 380086557,
+    "immutable": true,
+    "tag_object": "c3a87bd320a24e6c4961afc532fd4df6b5d165c3",
+    "target_commit": "d917eec6344f2eaa9a6fb0069f7fe0aaafeb6982",
+    "main_run_id": 33445305000,
+    "main_job_id": 99662940416,
+    "main_artifact": {
+      "id": 9777794326,
+      "name": "gooo-evolution-trial-33445305000",
+      "size_bytes": 130085,
+      "digest": "sha256:07c81d12ecf003907678cbbea15d104effd44bdb658893ee426820fdb5b9a13a"
+    },
+    "release_audit_run_id": 33445379243,
+    "release_audit_job_id": 99663170908,
+    "release_audit_artifact": {
+      "id": 9777817257,
+      "name": "gooo-evolution-trial-0.1.0-release-audit",
+      "size_bytes": 33589,
+      "digest": "sha256:1cf113aaf5a6e629ce2da1f358a5502dba3600ec9f8155b785d72acfd5f20001"
+    },
+    "assets": [
+      {
+        "id": 538589631,
+        "name": "experiment-dossier-v0.1.0.md",
+        "size_bytes": 2077,
+        "digest": "sha256:6d72387f9ee60cc994166595d1cd1c2abc3d72863f05c857bcb1470352b73b5e",
+        "url": "https://github.com/kimjooyoon/gooo-evolution-trial/releases/download/v0.1.0/experiment-dossier-v0.1.0.md"
+      },
+      {
+        "id": 538589629,
+        "name": "gooo-evolution-trial-source-v0.1.0.tar.gz",
+        "size_bytes": 28486,
+        "digest": "sha256:b22d716111c7bcbe5dab18a1bb8caee03388579ac394f93a15798ebca5c43bfc",
+        "url": "https://github.com/kimjooyoon/gooo-evolution-trial/releases/download/v0.1.0/gooo-evolution-trial-source-v0.1.0.tar.gz"
+      },
+      {
+        "id": 538589628,
+        "name": "release-manifest-v0.1.0.json",
+        "size_bytes": 764,
+        "digest": "sha256:16d908073ae49566fd7186a8d042758a79d30274e94fe5c5ca7ca20773fc9839",
+        "url": "https://github.com/kimjooyoon/gooo-evolution-trial/releases/download/v0.1.0/release-manifest-v0.1.0.json"
+      },
+      {
+        "id": 538589633,
+        "name": "SHA256SUMS",
+        "size_bytes": 469,
+        "digest": "sha256:e1431e654fe65bdb9a325b1da797b0da613e8712ad32c55854d78610f14380b4",
+        "url": "https://github.com/kimjooyoon/gooo-evolution-trial/releases/download/v0.1.0/SHA256SUMS"
+      },
+      {
+        "id": 538589630,
+        "name": "upstream-lock-v0.1.0.json",
+        "size_bytes": 3888,
+        "digest": "sha256:b7cff57d0a300af2876cc6da1a2ccf6aad51f1a153ac794761eb76763c1e8330",
+        "url": "https://github.com/kimjooyoon/gooo-evolution-trial/releases/download/v0.1.0/upstream-lock-v0.1.0.json"
+      },
+      {
+        "id": 538589627,
+        "name": "version.json",
+        "size_bytes": 319,
+        "digest": "sha256:b5475730a3726c2e2ff89457e8e976d8f5aada46bfcee6218e99cf6689b51b07",
+        "url": "https://github.com/kimjooyoon/gooo-evolution-trial/releases/download/v0.1.0/version.json"
+      }
+    ],
+    "exact_dossier": {
+      "asset_name": "experiment-dossier-v0.1.0.md",
+      "tracked_path": "docs/evolution-trial-dossier-v0.1.0.md",
+      "digest": "sha256:6d72387f9ee60cc994166595d1cd1c2abc3d72863f05c857bcb1470352b73b5e"
+    },
+    "candidate_bundle": {
+      "artifact_path": "delta-candidate/candidate-bundle.json",
+      "digest": "sha256:49244a778d6e80c67bb5fb0b99342873ba987916b14febb500524a26a5af3490"
+    },
+    "candidate_phase": {
+      "artifact_path": "candidate-phase.gooo",
+      "digest": "sha256:0be26e6d653f0200c0300334fdf252b0d6ea0fdec81acdf7ac34801a03cd5ff1"
+    },
+    "counterexample": {
+      "state": "REFUTED",
+      "error": "phase graph must declare exactly three executable activities",
+      "delta": {"added_cells": 2, "retired_cells": 1, "split_cells": 1},
+      "rollback_exact_pair": true,
+      "baseline_distribution": {"CLOSED": 1, "UNKNOWN": 1, "REFUTED": 1},
+      "candidate_distribution": {"CLOSED": 0, "UNKNOWN": 0, "REFUTED": 3},
+      "causal": {"total": 2, "selected": 1, "executed": 1, "reused": 1, "full_oracle": 2, "failures": 1}
+    }
+  },
+  "baseline_compiler": {
+    "repository": "kimjooyoon/gooo-reflexive-compiler-slice",
+    "tag": "v0.1.1",
+    "release_id": 380040917,
+    "immutable": true,
+    "tag_object": "8db85557f66d4bb61a4fc1816b3a20dab2c40f0c",
+    "target_commit": "dabbe38badebefdf2979d8862c26a647b0dd15c0",
+    "source_asset": {
+      "id": 538508360,
+      "name": "gooo-reflexive-compiler-slice-source-v0.1.1.tar.gz",
+      "size_bytes": 19475,
+      "digest": "sha256:ae6fef819ab034eb614e7a9e8b54ba18afab399ad2e730085ea221c2363fc38c",
+      "url": "https://github.com/kimjooyoon/gooo-reflexive-compiler-slice/releases/download/v0.1.1/gooo-reflexive-compiler-slice-source-v0.1.1.tar.gz"
+    },
+    "conformance_run_id": 33437644781,
+    "conformance_job_id": 99637878450,
+    "conformance_artifact_id": 9775010906
+  }
+}

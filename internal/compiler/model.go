@@ -7,17 +7,47 @@ const (
 )
 
 type Phase struct {
-	ID            string
-	Digest        string
-	Normalization Operation
-	Backend       Operation
-	Replay        Operation
+	ID                  string
+	Digest              string
+	Topology            string
+	Activities          []Activity
+	Edges               []Edge
+	Normalization       Operation
+	Validation          Operation
+	Backend             Operation
+	Replay              Operation
+	Split               SplitMigration
+	Acceptance          []string
+	Rollback            string
+	Precedence          []string
+	Authority           string
+	GraphUnknowns       []Unknown
+	GraphRefutations    []Refutation
+	LegacyEdgesInferred bool
 }
 
 type Operation struct {
 	Name    string
 	Program string
 	Options map[string]string
+}
+
+type Activity struct {
+	Name       string
+	InputType  string
+	OutputType string
+	Operation  Operation
+}
+
+type Edge struct {
+	From      string
+	To        string
+	ValueType string
+}
+
+type SplitMigration struct {
+	Retired string
+	Added   []string
 }
 
 type Declaration struct {

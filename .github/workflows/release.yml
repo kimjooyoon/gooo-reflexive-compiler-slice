@@ -10,7 +10,7 @@ on:
       release_version:
         description: New unused semantic version; never reuse a failed tag
         required: true
-        default: '0.1.1'
+        default: '0.2.0'
         type: string
 
 permissions:
@@ -90,6 +90,13 @@ jobs:
           CONFORMANCE_START_MS="$started" bash ./scripts/conformance.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" \
             "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
             "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
+
+      - name: Re-run self-improvement conformance
+        run: |
+          set -euo pipefail
+          ./scripts/improvement-conformance.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
           ./scripts/write-metrics.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" "$GITHUB_WORKSPACE/.ci/ci-metrics.json"
 
       - name: Assemble immutable assets
@@ -104,11 +111,11 @@ jobs:
           tar -czf ".ci/release/$binary_name" -C .ci/bin gooo-reflexive-compiler-slice
           jq -n --arg schema "gooo/reflexive-release-report/v1" --arg version "$RELEASE_VERSION" --arg tag "$RELEASE_TAG" --arg commit "$EXPECTED_SHA" \
             --slurpfile upstream .ci/upstream/report.json --slurpfile conformance .ci/conformance-report.json \
-            --slurpfile metrics .ci/ci-metrics.json \
-            '{schema:$schema,version:$version,tag:$tag,commit:$commit,scope:"ONE_COMPILER_PHASE_ONLY",upstream:$upstream[0],conformance:$conformance[0],metrics:$metrics[0]}' \
+            --slurpfile improvement .ci/improvement-report.json --slurpfile metrics .ci/ci-metrics.json \
+            '{schema:$schema,version:$version,tag:$tag,commit:$commit,scope:"ONE_COMPILER_PHASE_ONLY",upstream:$upstream[0],conformance:$conformance[0],improvement:$improvement[0],metrics:$metrics[0]}' \
             > ".ci/release/$report_name"
           jq -n --arg schema "gooo/reflexive-release/v1" --arg version "$RELEASE_VERSION" --arg tag "$RELEASE_TAG" --arg commit "$EXPECTED_SHA" \
-            '{schema:$schema,version:$version,tag:$tag,commit:$commit,phase:"reflexive.normalize.v1",scope:"ONE_COMPILER_PHASE_ONLY",self_hosting:"NOT_MADE",external_utility:"UNKNOWN",global_self_hosting:"UNKNOWN"}' \
+            '{schema:$schema,version:$version,tag:$tag,commit:$commit,phase:"reflexive.normalize.v2",scope:"ONE_COMPILER_PHASE_ONLY",self_hosting:"NOT_MADE",external_utility:"UNKNOWN",global_self_hosting:"UNKNOWN"}' \
             > .ci/release/version.json
           source_digest=$(sha256sum ".ci/release/$source_name" | awk '{print "sha256:" $1}')
           binary_digest=$(sha256sum ".ci/release/$binary_name" | awk '{print "sha256:" $1}')

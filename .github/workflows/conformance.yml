@@ -12,6 +12,8 @@ permissions:
 jobs:
   conformance:
     runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout exact subject
         uses: actions/checkout@v4
@@ -45,6 +47,12 @@ jobs:
             "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
             "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
 
+      - name: Self-improvement conformance
+        run: |
+          ./scripts/improvement-conformance.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
+
       - name: Write exact integer metrics
         run: ./scripts/write-metrics.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" "$GITHUB_WORKSPACE/.ci/ci-metrics.json"
 
@@ -65,7 +73,16 @@ jobs:
             (.wall_ms.build | type == "number" and floor == .) and
             (.wall_ms.test | type == "number" and floor == .) and
             (.wall_ms.conformance | type == "number" and floor == .) and
-            (.tests.total == 3 and .tests.executed == 3 and .tests.reused == 0 and .tests.failed == 0 and .tests.unknown == 1)
+            (.wall_ms.integration | type == "number" and floor == .) and
+            (.tests.total == 3 and .tests.executed == 3 and .tests.reused == 0 and .tests.failed == 0 and .tests.unknown == 1) and
+            (.resources.peak_rss_kib | type == "number" and floor == .) and
+            (.improvement.status == "CLOSED") and
+            (.improvement.resolution_pairs.supported_valid_topology_cardinalities.before == 1) and
+            (.improvement.resolution_pairs.supported_valid_topology_cardinalities.after == 2) and
+            (.improvement.resolution_pairs.accepted_trial_candidate_cases.before == 0) and
+            (.improvement.resolution_pairs.accepted_trial_candidate_cases.after == 3) and
+            (.improvement.resolution_pairs.coarse_localization_stages.before == 1) and
+            (.improvement.resolution_pairs.coarse_localization_stages.after == 2)
           ' .ci/ci-metrics.json
 
       - name: Upload evidence

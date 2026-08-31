@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/kimjooyoon/gooo-reflexive-compiler-slice/internal/compiler"
 )
 
 var unknownFields = []string{"stage", "step", "reason", "unknown_class", "next_operation", "blocked_by"}
@@ -154,6 +156,11 @@ func Verify(options Options) (Report, error) {
 	if err != nil {
 		return report, err
 	}
+	phase, err := compiler.LoadPhase(phasePath)
+	if err != nil {
+		return report, err
+	}
+	report.Errors = append(report.Errors, phaseGraphErrors(phase)...)
 	sourceData, sourceDigest, err := readDigest(sourcePath)
 	if err != nil {
 		return report, err
@@ -266,6 +273,17 @@ func Verify(options Options) (Report, error) {
 	_ = phaseData
 	_ = sourceData
 	return report, nil
+}
+
+func phaseGraphErrors(phase compiler.Phase) []string {
+	errors := []string{}
+	for _, issue := range phase.GraphUnknowns {
+		errors = append(errors, "phase graph UNKNOWN: "+issue.Reason)
+	}
+	for _, issue := range phase.GraphRefutations {
+		errors = append(errors, "phase graph REFUTED: "+issue.Reason)
+	}
+	return errors
 }
 
 func readReceipt(path string) (receipt, map[string]json.RawMessage, error) {

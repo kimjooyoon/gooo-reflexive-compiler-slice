@@ -14,6 +14,15 @@ subdirectories=$(git -C "$root" ls-files | awk -F/ 'NF > 1 {for (i=1; i<NF; i++)
 output_files=$(jq -r '.output_files' "$work/conformance-report.json")
 output_bytes=$(jq -r '.output_bytes' "$work/conformance-report.json")
 peak_rss=$(jq -r '.peak_rss_bytes' "$work/conformance-report.json")
+integration_wall_ms=$(jq -r '.integration.wall_ms' "$work/improvement-report.json")
+integration_peak_rss_kib=$(jq -r '.integration.peak_rss_kib' "$work/improvement-report.json")
+improvement_status=$(jq -r '.status' "$work/improvement-report.json")
+before_topology=$(jq -r '.resolution_pairs.supported_valid_topology_cardinalities.before' "$work/improvement-report.json")
+after_topology=$(jq -r '.resolution_pairs.supported_valid_topology_cardinalities.after' "$work/improvement-report.json")
+before_cases=$(jq -r '.resolution_pairs.accepted_trial_candidate_cases.before' "$work/improvement-report.json")
+after_cases=$(jq -r '.resolution_pairs.accepted_trial_candidate_cases.after' "$work/improvement-report.json")
+before_stages=$(jq -r '.resolution_pairs.coarse_localization_stages.before' "$work/improvement-report.json")
+after_stages=$(jq -r '.resolution_pairs.coarse_localization_stages.after' "$work/improvement-report.json")
 for timing in build test; do
 	if [ ! -f "$work/timing/$timing.json" ]; then
 		echo "missing $timing timing" >&2
@@ -27,6 +36,7 @@ jq -n \
 	--argjson files_total "$files_total" --argjson subdirectories "$subdirectories" \
 	--argjson output_files "$output_files" --argjson output_bytes "$output_bytes" \
 	--argjson peak_rss_bytes "$peak_rss" \
+	--argjson integration_wall_ms "$integration_wall_ms" --argjson integration_peak_rss_kib "$integration_peak_rss_kib" \
 	--argjson compile_wall_ms "$(jq -r '.compile_wall_ms' "$work/conformance-report.json")" \
 	--argjson build_wall_ms "$(jq -r '.wall_ms' "$work/timing/build.json")" \
 	--argjson test_wall_ms "$(jq -r '.wall_ms' "$work/timing/test.json")" \
@@ -36,5 +46,7 @@ jq -n \
 	--argjson tests_reused "$(jq -r '.tests.reused' "$work/conformance-report.json")" \
 	--argjson tests_failed "$(jq -r '.tests.failed' "$work/conformance-report.json")" \
 	--argjson tests_unknown "$(jq -r '.tests.unknown' "$work/conformance-report.json")" \
-	'{schema:$schema,inventory:{go_files:$go_files,gooo_files:$gooo_files,go_physical_lines:$go_physical_lines,gooo_physical_lines:$gooo_physical_lines,files_total:$files_total,subdirectories:$subdirectories,root_readme_inventory_excluded:1},outputs:{count:$output_files,bytes:$output_bytes},resources:{peak_rss_bytes:$peak_rss_bytes},wall_ms:{compile:$compile_wall_ms,build:$build_wall_ms,test:$test_wall_ms,conformance:$conformance_wall_ms},tests:{total:$tests_total,executed:$tests_executed,reused:$tests_reused,failed:$tests_failed,unknown:$tests_unknown}}' \
+	--arg improvement_status "$improvement_status" --argjson before_topology "$before_topology" --argjson after_topology "$after_topology" \
+	--argjson before_cases "$before_cases" --argjson after_cases "$after_cases" --argjson before_stages "$before_stages" --argjson after_stages "$after_stages" \
+	'{schema:$schema,inventory:{go_files:$go_files,gooo_files:$gooo_files,go_physical_lines:$go_physical_lines,gooo_physical_lines:$gooo_physical_lines,files_total:$files_total,subdirectories:$subdirectories,root_readme_inventory_excluded:1},outputs:{count:$output_files,bytes:$output_bytes},resources:{peak_rss_bytes:$peak_rss_bytes,peak_rss_kib:$integration_peak_rss_kib},wall_ms:{compile:$compile_wall_ms,build:$build_wall_ms,test:$test_wall_ms,conformance:$conformance_wall_ms,integration:$integration_wall_ms},tests:{total:$tests_total,executed:$tests_executed,reused:$tests_reused,failed:$tests_failed,unknown:$tests_unknown},improvement:{status:$improvement_status,resolution_pairs:{supported_valid_topology_cardinalities:{before:$before_topology,after:$after_topology},accepted_trial_candidate_cases:{before:$before_cases,after:$after_cases},coarse_localization_stages:{before:$before_stages,after:$after_stages}}}}' \
 	> "$output"
