@@ -49,12 +49,16 @@ file inventory. The three fixed semantic cases are executed afresh, so reuse is
 zero; the one UNKNOWN case is counted under `tests.unknown` and is not a test
 failure.
 
-The release workflow is fail-closed. If a previous publish attempt has already
-created an annotated tag but no release, recovery verifies that the tag resolves
-to the exact requested release SHA and publishes against that tag without
-changing the tag. A new tag uses the current main SHA; an existing release,
-wrong tag target, or checksum mismatch stops the workflow. No tag or release is
-deleted or overwritten.
+The historical `v0.1.0` release is retained without mutation and is recorded as
+non-durable because its GitHub release API object reports `immutable=false`.
+The corrective release workflow uses an unused version (default `v0.1.1`),
+refuses any existing tag or release, and never repairs a failed tag by deleting
+or rewriting it. After the repository immutable-releases setting is enabled
+through the official REST API, the workflow creates one annotated tag for the
+exact main SHA, publishes six assets, and verifies through REST that the release
+is non-draft, non-prerelease, `immutable=true`, and has the exact six asset
+names, sizes, and digests staged by CI. It also verifies the annotated tag
+object and commit target. Any mismatch stops the workflow.
 
 ## Claims intentionally not made
 
