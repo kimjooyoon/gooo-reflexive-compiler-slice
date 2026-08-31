@@ -14,12 +14,16 @@ run_timed() {
 	local label=$1
 	shift
 	local timing="$work/timing/$label.txt"
+	set +e
 	/usr/bin/time -v -o "$timing" "$@"
+	local status=$?
+	set -e
 	local rss
 	rss=$(awk -F: '/Maximum resident set size/ {gsub(/^[ \t]+/, "", $2); print $2 * 1024}' "$timing")
 	if [ "${rss:-0}" -gt "$max_rss" ]; then
 		max_rss=$rss
 	fi
+	return "$status"
 }
 
 compile_start=$(date +%s%3N)

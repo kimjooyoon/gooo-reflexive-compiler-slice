@@ -192,6 +192,7 @@ func Verify(options Options) (Report, error) {
 		report.Errors = append(report.Errors, "baseline semantic IR is not JSON")
 	} else {
 		report.Errors = append(report.Errors, validateIR(ir, phaseDigest, sourceDigest)...)
+		report.Errors = append(report.Errors, validateRefutationEvidence(ir, baseline.Refutations, "baseline")...)
 		report.Errors = append(report.Errors, validateGenerated(baselineGenerated, ir, "baseline")...)
 	}
 	var candidateIR semanticIR
@@ -199,6 +200,7 @@ func Verify(options Options) (Report, error) {
 		report.Errors = append(report.Errors, "candidate semantic IR is not JSON")
 	} else {
 		report.Errors = append(report.Errors, validateIR(candidateIR, phaseDigest, sourceDigest)...)
+		report.Errors = append(report.Errors, validateRefutationEvidence(candidateIR, candidate.Refutations, "candidate")...)
 		report.Errors = append(report.Errors, validateGenerated(candidateGenerated, candidateIR, "candidate")...)
 	}
 	if !bytes.Equal(baselineIRData, candidateIRData) {
@@ -333,17 +335,39 @@ func validateIR(value semanticIR, phaseDigest, sourceDigest string) []string {
 	if value.OriginSourceDigest != sourceDigest {
 		errors = append(errors, "semantic IR source lineage mismatch")
 	}
-	seen := map[string]bool{}
 	for _, declaration := range value.Declarations {
 		if declaration.StableID == "" {
 			errors = append(errors, "semantic IR contains empty stable id")
 		}
+	}
+	return errors
+}
+
+func validateRefutationEvidence(value semanticIR, refutations []refutation, label string) []string {
+	seen := map[string]bool{}
+	duplicates := map[string]bool{}
+	for _, declaration := range value.Declarations {
 		if seen[declaration.StableID] {
-			errors = append(errors, "semantic IR contains duplicate stable id")
+			duplicates[declaration.StableID] = true
 		}
 		seen[declaration.StableID] = true
 	}
-	return errors
+	hasDuplicateRefutation := false
+	for _, value := range refutations {
+		if value.Reason == "DUPLICATE_STABLE_ID" {
+			hasDuplicateRefutation = true
+			if !duplicates[value.Counterexample] {
+				return []string{label + " refutation points to a non-duplicate stable id"}
+			}
+		}
+	}
+	if len(duplicates) > 0 && !hasDuplicateRefutation {
+		return []string{label + " duplicate stable id was not preserved as refutation evidence"}
+	}
+	if len(duplicates) == 0 && hasDuplicateRefutation {
+		return []string{label + " duplicate stable id refutation has no counterexample"}
+	}
+	return nil
 }
 
 func validateGenerated(data []byte, value semanticIR, label string) []string {
