@@ -82,8 +82,7 @@ jobs:
           (cd .ci/release && sha256sum \
             gooo-reflexive-compiler-slice-source-v0.1.0.tar.gz \
             gooo-reflexive-compiler-slice-linux-amd64-v0.1.0.tar.gz \
-            release-report-v0.1.0.json version.json release-manifest-v0.1.0.json) \
-            > SHA256SUMS
+            release-report-v0.1.0.json version.json release-manifest-v0.1.0.json > SHA256SUMS)
           (cd .ci/release && sha256sum -c SHA256SUMS)
           jq -e --arg source "$source_digest" --arg binary "$binary_digest" --arg report "$report_digest" --arg version "$version_digest" '
             [.assets[] | .digest] == [$source,$binary,$report,$version]
