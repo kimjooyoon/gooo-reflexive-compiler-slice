@@ -1,0 +1,3 @@
+.ci/
+dist/
+coverage.out
