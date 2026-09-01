@@ -68,8 +68,8 @@ func Compile(options CompileOptions) (Receipt, error) {
 		return Receipt{}, err
 	}
 
-	unknowns := append([]Unknown(nil), phase.GraphUnknowns...)
-	refutations := append([]Refutation(nil), phase.GraphRefutations...)
+	unknowns := append([]Unknown{}, phase.GraphUnknowns...)
+	refutations := append([]Refutation{}, phase.GraphRefutations...)
 	namespace := "unknown"
 	declarations := []Declaration{}
 	replayEvidence := false
@@ -90,8 +90,8 @@ func Compile(options CompileOptions) (Receipt, error) {
 			})
 		} else {
 			namespace, declarations = ir.Namespace, append([]Declaration(nil), ir.Declarations...)
-			unknowns = append([]Unknown(nil), ir.Evidence.Unknowns...)
-			refutations = append([]Refutation(nil), ir.Evidence.Refutations...)
+			unknowns = append([]Unknown{}, ir.Evidence.Unknowns...)
+			refutations = append([]Refutation{}, ir.Evidence.Refutations...)
 			replayEvidence = true
 			if ir.PhaseDigest != phase.Digest {
 				unknowns = append(unknowns, Unknown{
@@ -134,7 +134,7 @@ func Compile(options CompileOptions) (Receipt, error) {
 			})
 		}
 	}
-	if namespace == "unknown" {
+	if namespace == "" || namespace == "unknown" {
 		namespace = "reflexive_unknown"
 	}
 	sort.SliceStable(declarations, func(left, right int) bool {
