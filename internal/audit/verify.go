@@ -459,7 +459,7 @@ func validateTerminal(value receipt, terminal terminalRecord, data []byte, diges
 			errors = append(errors, label+" CLOSED explanation digest is not evidence-derived")
 		}
 	}
-	if digestBytes(data) != digest {
+	if bytesDigest(data) != digest {
 		errors = append(errors, label+" terminal record digest is not byte-derived")
 	}
 	return errors
@@ -494,7 +494,13 @@ func validateFrontier(phase compiler.Phase, terminal terminalRecord, label strin
 
 func digestEvidence(value any) string {
 	data, _ := json.Marshal(value)
-	return digestBytes(data)
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func bytesDigest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func equalStringSlices(left, right []string) bool {
