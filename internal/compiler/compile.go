@@ -26,6 +26,7 @@ type executionProjection struct {
 	Refutations []Refutation
 	SemanticIR  string
 	Generated   string
+	Terminal    string
 }
 
 func Compile(options CompileOptions) (Receipt, error) {
@@ -71,12 +72,13 @@ func Compile(options CompileOptions) (Receipt, error) {
 	refutations := append([]Refutation(nil), phase.GraphRefutations...)
 	namespace := "unknown"
 	declarations := []Declaration{}
+	replayEvidence := false
 	if options.InputKind == "source" {
 		namespace, declarations, err = parseSource(inputData)
 		if err != nil {
 			unknowns = append(unknowns, Unknown{
 				Stage: "SOURCE_READ", Step: "PARSE_GOOO_INPUT", Reason: "SOURCE_NOT_PARSEABLE",
-				UnknownClass: "DIRECT_MISSING", NextOperation: "REPAIR_GOOO_INPUT", BlockedBy: []string{"SOURCE_BYTES"},
+				UnknownClass: sourceUnknownClass(err), NextOperation: "REPAIR_GOOO_INPUT", BlockedBy: []string{"SOURCE_BYTES"},
 			})
 		}
 	} else {
@@ -88,6 +90,9 @@ func Compile(options CompileOptions) (Receipt, error) {
 			})
 		} else {
 			namespace, declarations = ir.Namespace, append([]Declaration(nil), ir.Declarations...)
+			unknowns = append([]Unknown(nil), ir.Evidence.Unknowns...)
+			refutations = append([]Refutation(nil), ir.Evidence.Refutations...)
+			replayEvidence = true
 			if ir.PhaseDigest != phase.Digest {
 				unknowns = append(unknowns, Unknown{
 					Stage: "SEMANTIC_IR_READ", Step: "VERIFY_PHASE_DIGEST", Reason: "SEMANTIC_IR_PHASE_STALE",
@@ -103,29 +108,31 @@ func Compile(options CompileOptions) (Receipt, error) {
 		}
 	}
 
-	seen := map[string]bool{}
-	for _, declaration := range declarations {
-		if declaration.StableID == "" || declaration.Name == "" {
+	if !replayEvidence {
+		seen := map[string]bool{}
+		for _, declaration := range declarations {
+			if declaration.StableID == "" || declaration.Name == "" {
+				unknowns = append(unknowns, Unknown{
+					Stage: "NORMALIZE", Step: "BIND_STABLE_ID", Reason: "DECLARATION_ID_MISSING",
+					UnknownClass: "DIRECT_MISSING", NextOperation: "DECLARE_STABLE_ID", BlockedBy: []string{"DECLARATION_ID"},
+				})
+				continue
+			}
+			if seen[declaration.StableID] {
+				refutations = append(refutations, Refutation{
+					Stage: "NORMALIZE", Step: "CHECK_STABLE_ID_UNIQUENESS", Reason: "DUPLICATE_STABLE_ID",
+					Counterexample: declaration.StableID,
+				})
+			}
+			seen[declaration.StableID] = true
+		}
+		required := phase.Normalization.Options["required_entity"]
+		if required != "" && !seen[required] {
 			unknowns = append(unknowns, Unknown{
-				Stage: "NORMALIZE", Step: "BIND_STABLE_ID", Reason: "DECLARATION_ID_MISSING",
-				UnknownClass: "DIRECT_MISSING", NextOperation: "DECLARE_STABLE_ID", BlockedBy: []string{"DECLARATION_ID"},
-			})
-			continue
-		}
-		if seen[declaration.StableID] {
-			refutations = append(refutations, Refutation{
-				Stage: "NORMALIZE", Step: "CHECK_STABLE_ID_UNIQUENESS", Reason: "DUPLICATE_STABLE_ID",
-				Counterexample: declaration.StableID,
+				Stage: "NORMALIZE", Step: "REQUIRE_DECLARED_ENTITY", Reason: "REQUIRED_ENTITY_MISSING",
+				UnknownClass: "DIRECT_MISSING", NextOperation: "ADD_REQUIRED_ENTITY", BlockedBy: []string{required},
 			})
 		}
-		seen[declaration.StableID] = true
-	}
-	required := phase.Normalization.Options["required_entity"]
-	if required != "" && !seen[required] {
-		unknowns = append(unknowns, Unknown{
-			Stage: "NORMALIZE", Step: "REQUIRE_DECLARED_ENTITY", Reason: "REQUIRED_ENTITY_MISSING",
-			UnknownClass: "DIRECT_MISSING", NextOperation: "ADD_REQUIRED_ENTITY", BlockedBy: []string{required},
-		})
 	}
 	if namespace == "unknown" {
 		namespace = "reflexive_unknown"
@@ -139,21 +146,28 @@ func Compile(options CompileOptions) (Receipt, error) {
 		}
 		return declarations[left].Name < declarations[right].Name
 	})
+	decision := reduce(unknowns, refutations)
+	terminal := buildTerminalRecord(phase, decision, unknowns, refutations)
 	ir := SemanticIR{
 		Schema: irSchema, PhaseID: phase.ID, PhaseDigest: phase.Digest,
 		OriginSourceDigest: sourceDigest, Namespace: namespace, Declarations: declarations,
+		Evidence: TerminalEvidence{Unknowns: unknowns, Refutations: refutations}, TerminalRecord: terminal,
 	}
 	irBytes, err := marshalJSON(ir)
 	if err != nil {
 		return Receipt{}, err
 	}
-	generatedBytes := emitGenerated(ir, phase)
-	decision := reduce(unknowns, refutations)
+	generatedBytes := emitGenerated(ir, phase, terminal)
+	terminalBytes, err := marshalJSON(terminal)
+	if err != nil {
+		return Receipt{}, err
+	}
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return Receipt{}, err
 	}
 	irPath := filepath.Join(outputDir, "semantic-ir.json")
 	generatedPath := filepath.Join(outputDir, "generated.go")
+	terminalPath := filepath.Join(outputDir, "terminal-record.json")
 	receiptPath := filepath.Join(outputDir, "receipt.json")
 	if err := os.WriteFile(irPath, irBytes, 0o644); err != nil {
 		return Receipt{}, err
@@ -161,17 +175,23 @@ func Compile(options CompileOptions) (Receipt, error) {
 	if err := os.WriteFile(generatedPath, generatedBytes, 0o644); err != nil {
 		return Receipt{}, err
 	}
+	if err := os.WriteFile(terminalPath, terminalBytes, 0o644); err != nil {
+		return Receipt{}, err
+	}
 	receipt := Receipt{
-		Schema: "gooo/reflexive-compiler-receipt/v1", RunID: options.RunID, Role: options.Role,
+		Schema: "gooo/reflexive-compiler-receipt/v2", RunID: options.RunID, Role: options.Role,
 		InputKind: options.InputKind, Phase: FileLineage{Path: phasePath, Digest: phase.Digest},
 		Source: FileLineage{Path: sourcePath, Digest: sourceDigest}, Input: FileLineage{Path: inputPath, Digest: inputDigest},
 		SemanticIR: ArtifactLineage{Path: irPath, Digest: digestBytes(irBytes), Kind: "SEMANTIC_IR"},
 		Generated:  ArtifactLineage{Path: generatedPath, Digest: digestBytes(generatedBytes), Kind: "BACKEND_ARTIFACT"},
+		Terminal:   ArtifactLineage{Path: terminalPath, Digest: digestBytes(terminalBytes), Kind: "TERMINAL_RECORD"},
 		Decision:   decision, Unknowns: unknowns, Refutations: refutations,
+		TerminalRecord: terminal,
 	}
 	receipt.ExecutionDigest, err = digestJSON(executionProjection{
 		Decision: decision, Unknowns: unknowns, Refutations: refutations,
 		SemanticIR: receipt.SemanticIR.Digest, Generated: receipt.Generated.Digest,
+		Terminal: receipt.Terminal.Digest,
 	})
 	if err != nil {
 		return Receipt{}, err
@@ -193,10 +213,16 @@ func Compile(options CompileOptions) (Receipt, error) {
 	return receipt, nil
 }
 
-func emitGenerated(ir SemanticIR, phase Phase) []byte {
+func emitGenerated(ir SemanticIR, phase Phase, terminal TerminalRecord) []byte {
 	var out strings.Builder
+	authority := "meta/reflexive-normalize.gooo"
+	if base := filepath.Base(phase.SourcePath); strings.HasSuffix(base, ".gooo") {
+		authority = "meta/" + base
+	}
 	out.WriteString("// Code generated by gooo-reflexive-compiler-slice; DO NOT EDIT.\n")
-	out.WriteString("// semantic-authority: meta/reflexive-normalize.gooo\n")
+	out.WriteString("// semantic-authority: ")
+	out.WriteString(authority)
+	out.WriteString("\n")
 	out.WriteString("// backend-artifact: generated from semantic-ir.json\n")
 	out.WriteString("package generated\n\n")
 	out.WriteString("type SemanticNode struct {\n")
@@ -232,7 +258,62 @@ func emitGenerated(ir SemanticIR, phase Phase) []byte {
 		out.WriteString("},\n")
 	}
 	out.WriteString("}\n")
+	out.WriteString("\n// Terminal is the explanation-carrying result emitted with this backend.\n")
+	out.WriteString("type TerminalRecord struct {\n")
+	out.WriteString("\tDecision string\n\tStage string\n\tStep string\n\tReason string\n\tUnknownClass string\n\tNextOperation string\n\tBlockedBy []string\n\tCauseEdge FrontierEdge\n\tMinimalFrontier []FrontierEdge\n\tCounterexample string\n\tCounterexampleDigest string\n")
+	out.WriteString("}\n\ntype FrontierEdge struct {\n\tFrom string\n\tTo string\n\tValueType string\n}\n\nvar Terminal = TerminalRecord{\n")
+	out.WriteString("\tDecision: ")
+	out.WriteString(strconv.Quote(terminal.Decision))
+	out.WriteString(",\n\tStage: ")
+	out.WriteString(strconv.Quote(terminal.Stage))
+	out.WriteString(",\n\tStep: ")
+	out.WriteString(strconv.Quote(terminal.Step))
+	out.WriteString(",\n\tReason: ")
+	out.WriteString(strconv.Quote(terminal.Reason))
+	out.WriteString(",\n\tUnknownClass: ")
+	out.WriteString(strconv.Quote(terminal.UnknownClass))
+	out.WriteString(",\n\tNextOperation: ")
+	out.WriteString(strconv.Quote(terminal.NextOperation))
+	out.WriteString(",\n\tBlockedBy: ")
+	out.WriteString(quoteStrings(terminal.BlockedBy))
+	out.WriteString(",\n\tCauseEdge: FrontierEdge{From: ")
+	out.WriteString(strconv.Quote(terminal.CauseEdge.From))
+	out.WriteString(", To: ")
+	out.WriteString(strconv.Quote(terminal.CauseEdge.To))
+	out.WriteString(", ValueType: ")
+	out.WriteString(strconv.Quote(terminal.CauseEdge.ValueType))
+	out.WriteString("},\n\tMinimalFrontier: []FrontierEdge{")
+	for index, edge := range terminal.MinimalFrontier {
+		if index > 0 {
+			out.WriteString(", ")
+		}
+		out.WriteString("{From: ")
+		out.WriteString(strconv.Quote(edge.From))
+		out.WriteString(", To: ")
+		out.WriteString(strconv.Quote(edge.To))
+		out.WriteString(", ValueType: ")
+		out.WriteString(strconv.Quote(edge.ValueType))
+		out.WriteString("}")
+	}
+	out.WriteString("},\n\tCounterexample: ")
+	out.WriteString(strconv.Quote(terminal.Counterexample))
+	out.WriteString(",\n\tCounterexampleDigest: ")
+	out.WriteString(strconv.Quote(terminal.CounterexampleDigest))
+	out.WriteString("\n}\n")
 	return []byte(out.String())
+}
+
+func quoteStrings(values []string) string {
+	var out strings.Builder
+	out.WriteString("[]string{")
+	for index, value := range values {
+		if index > 0 {
+			out.WriteString(", ")
+		}
+		out.WriteString(strconv.Quote(value))
+	}
+	out.WriteString("}")
+	return out.String()
 }
 
 func marshalJSON(value any) ([]byte, error) {

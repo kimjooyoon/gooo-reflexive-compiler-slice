@@ -10,6 +10,12 @@ emits Go only as a derived backend artifact. The next execution reads the
 first execution's generated semantic IR; it does not silently reread the
 source.
 
+Every execution also emits `terminal-record.json`, embeds the same
+`terminal_record` in `receipt.json`, and carries the record into `generated.go`.
+The record explains `CLOSED`, `UNKNOWN`, and `REFUTED` with the winning
+stage/step/reason, the UNKNOWN six-field contract, a minimal cause-edge
+frontier, and an evidence-derived counterexample digest.
+
 The Go implementation interprets the operation programs declared by that
 `.gooo` graph. The independent verifier in
 [`cmd/gooo-reflexive-verify`](cmd/gooo-reflexive-verify) recomputes all artifact
@@ -18,10 +24,13 @@ conditions from bytes on disk.
 
 ## Evidence boundary
 
-The fixed denominator is exactly three cases: one `CLOSED`, one `UNKNOWN`, and
-one `REFUTED`. Reduction is fixed as `REFUTED > UNKNOWN > CLOSED`. Every
-`UNKNOWN` record carries `stage`, `step`, `reason`, `unknown_class`,
-`next_operation`, and `blocked_by`; missing fields are a verification failure.
+The historical denominator remains exactly three cases: one `CLOSED`, one
+`UNKNOWN`, and one `REFUTED`. The v0.3 terminal corpus adds a fixed two-normal,
+five-UNKNOWN, two-REFUTED corpus and runs it through both the legacy
+three-activity and split four-activity topologies. Reduction is fixed as
+`REFUTED > UNKNOWN > CLOSED`. Every `UNKNOWN` record carries `stage`, `step`,
+`reason`, `unknown_class`, `next_operation`, and `blocked_by`; missing fields
+are a verification failure.
 
 Only immutable releases listed in
 [`contracts/upstream-lock-v1.json`](contracts/upstream-lock-v1.json) are used
@@ -43,9 +52,10 @@ counts.
 GitHub Actions is the verification authority. It runs Go 1.27, format, vet,
 build, tests, immutable upstream checks, the three-case conformance run, and
 the independent verifier, and the locked evolution-trial follow-up. It records
-integer counts for Go/Gooo files and physical lines, files, subdirectories,
-output files/bytes, peak RSS, compile, build, test, conformance, and integration
-wall milliseconds, plus test totals/executed, reused, failed, and unknown. The
+integer counts for Go/Gooo files and physical lines, regular files,
+subdirectories, output files/bytes, generated artifact files/bytes, peak RSS,
+compile, build, test, conformance, terminal-conformance, and integration wall
+milliseconds, plus full/selected/executed/reused/failed/unknown test counts. The
 follow-up closes the released `REFUTED` counterexample only for this phase,
 with exact resolution pairs `1→2` valid topologies, `0→3` accepted trial
 cases, and `1→2` localization stages under equal source, contract, and
@@ -54,7 +64,7 @@ toolchain digests.
 The historical `v0.1.0` release is preserved as-is and is explicitly
 non-durable (`immutable=false` in the GitHub release API); it is never reused
 or modified. The manual, main-bound release workflow defaults to the new
-`v0.1.1` version and requires the repository's immutable-releases setting to be
+`v0.3.0` version and requires the repository's immutable-releases setting to be
 enabled through GitHub's official API before publication. It refuses an
 existing tag or release, creates one annotated tag for the requested unused
 version, publishes six exact assets with `SHA256SUMS`, and then fails closed

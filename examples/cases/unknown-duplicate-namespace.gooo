@@ -1,0 +1,6 @@
+package reflexive_input
+namespace reflexive_input
+namespace reflexive_input_again
+
+entity RequiredNode id "gooo://reflexive/input/required"
+activity StableTask(RequiredNode) -> RequiredNode

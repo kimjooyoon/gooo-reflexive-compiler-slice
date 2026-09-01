@@ -7,6 +7,7 @@ const (
 )
 
 type Phase struct {
+	SourcePath          string
 	ID                  string
 	Digest              string
 	Topology            string
@@ -59,12 +60,19 @@ type Declaration struct {
 }
 
 type SemanticIR struct {
-	Schema             string        `json:"schema"`
-	PhaseID            string        `json:"phase_id"`
-	PhaseDigest        string        `json:"phase_digest"`
-	OriginSourceDigest string        `json:"origin_source_digest"`
-	Namespace          string        `json:"namespace"`
-	Declarations       []Declaration `json:"declarations"`
+	Schema             string           `json:"schema"`
+	PhaseID            string           `json:"phase_id"`
+	PhaseDigest        string           `json:"phase_digest"`
+	OriginSourceDigest string           `json:"origin_source_digest"`
+	Namespace          string           `json:"namespace"`
+	Declarations       []Declaration    `json:"declarations"`
+	Evidence           TerminalEvidence `json:"evidence"`
+	TerminalRecord     TerminalRecord   `json:"terminal_record"`
+}
+
+type TerminalEvidence struct {
+	Unknowns    []Unknown    `json:"unknowns"`
+	Refutations []Refutation `json:"refutations"`
 }
 
 type Unknown struct {
@@ -94,6 +102,30 @@ type ArtifactLineage struct {
 	Kind   string `json:"kind"`
 }
 
+type FrontierEdge struct {
+	From      string `json:"from"`
+	To        string `json:"to"`
+	ValueType string `json:"value_type"`
+}
+
+// TerminalRecord is the explanation-carrying boundary of one compiler run.
+// It is emitted independently of the backend so a CLOSED, UNKNOWN, or REFUTED
+// result remains observable even when no consumer compiles generated.go.
+type TerminalRecord struct {
+	Schema               string         `json:"schema"`
+	Decision             string         `json:"decision"`
+	Stage                string         `json:"stage"`
+	Step                 string         `json:"step"`
+	Reason               string         `json:"reason"`
+	UnknownClass         string         `json:"unknown_class"`
+	NextOperation        string         `json:"next_operation"`
+	BlockedBy            []string       `json:"blocked_by"`
+	CauseEdge            FrontierEdge   `json:"cause_edge"`
+	MinimalFrontier      []FrontierEdge `json:"minimal_frontier"`
+	Counterexample       string         `json:"counterexample"`
+	CounterexampleDigest string         `json:"counterexample_digest"`
+}
+
 type Receipt struct {
 	Schema          string          `json:"schema"`
 	RunID           string          `json:"run_id"`
@@ -104,9 +136,11 @@ type Receipt struct {
 	Input           FileLineage     `json:"input"`
 	SemanticIR      ArtifactLineage `json:"semantic_ir"`
 	Generated       ArtifactLineage `json:"generated"`
+	Terminal        ArtifactLineage `json:"terminal"`
 	Decision        string          `json:"decision"`
 	Unknowns        []Unknown       `json:"unknowns"`
 	Refutations     []Refutation    `json:"refutations"`
+	TerminalRecord  TerminalRecord  `json:"terminal_record"`
 	ExecutionDigest string          `json:"execution_digest"`
 	ReceiptDigest   string          `json:"receipt_digest"`
 }

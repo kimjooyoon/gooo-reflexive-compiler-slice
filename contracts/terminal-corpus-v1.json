@@ -1,0 +1,20 @@
+{
+  "schema": "gooo/reflexive-compiler-terminal-corpus/v1",
+  "phase_id": "reflexive.normalize.v1",
+  "topologies": [
+    {"id": "legacy-three-activity", "phase": "meta/reflexive-normalize-v1.gooo", "activity_count": 3, "localization_stages": 1},
+    {"id": "split-four-activity", "phase": "meta/reflexive-normalize.gooo", "activity_count": 4, "localization_stages": 2}
+  ],
+  "unknown_fields": ["stage", "step", "reason", "unknown_class", "next_operation", "blocked_by"],
+  "cases": [
+    {"id": "CLOSED_CANONICAL_INPUT", "source": "examples/cases/closed.gooo", "expected": "CLOSED", "unknown_class": ""},
+    {"id": "CLOSED_MINIMAL_INPUT", "source": "examples/cases/closed-minimal.gooo", "expected": "CLOSED", "unknown_class": ""},
+    {"id": "UNKNOWN_MISSING_REQUIRED_ENTITY", "source": "examples/cases/unknown.gooo", "expected": "UNKNOWN", "unknown_class": "DIRECT_MISSING"},
+    {"id": "UNKNOWN_MISSING_NAMESPACE", "source": "examples/cases/unknown-missing-namespace.gooo", "expected": "UNKNOWN", "unknown_class": "SYNTAX_ERROR"},
+    {"id": "UNKNOWN_UNSUPPORTED_DECLARATION", "source": "examples/cases/unknown-unsupported-declaration.gooo", "expected": "UNKNOWN", "unknown_class": "UNSUPPORTED_DECLARATION"},
+    {"id": "UNKNOWN_INVALID_ENTITY", "source": "examples/cases/unknown-invalid-entity.gooo", "expected": "UNKNOWN", "unknown_class": "INVALID_DECLARATION"},
+    {"id": "UNKNOWN_DUPLICATE_NAMESPACE", "source": "examples/cases/unknown-duplicate-namespace.gooo", "expected": "UNKNOWN", "unknown_class": "DUPLICATE_NAMESPACE"},
+    {"id": "REFUTED_DUPLICATE_STABLE_ID", "source": "examples/cases/refuted.gooo", "expected": "REFUTED", "unknown_class": ""},
+    {"id": "REFUTED_DUPLICATE_ACTIVITY", "source": "examples/cases/refuted-duplicate-activity.gooo", "expected": "REFUTED", "unknown_class": ""}
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema": "gooo/reflexive-terminal-record/v1",
+  "decisions": ["CLOSED", "UNKNOWN", "REFUTED"],
+  "precedence": ["REFUTED", "UNKNOWN", "CLOSED"],
+  "required_fields": [
+    "schema",
+    "decision",
+    "stage",
+    "step",
+    "reason",
+    "unknown_class",
+    "next_operation",
+    "blocked_by",
+    "cause_edge",
+    "minimal_frontier",
+    "counterexample",
+    "counterexample_digest"
+  ],
+  "unknown_required_fields": ["stage", "step", "reason", "unknown_class", "next_operation", "blocked_by"],
+  "frontier_edge_fields": ["from", "to", "value_type"]
+}
