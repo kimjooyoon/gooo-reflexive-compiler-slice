@@ -576,7 +576,7 @@ func validateRefutationEvidence(value semanticIR, refutations []refutation, labe
 func validateGenerated(data []byte, value semanticIR, terminal terminalRecord, label string) []string {
 	errors := []string{}
 	text := string(data)
-	if !strings.Contains(text, "backend-artifact: generated from semantic-ir.json") || !strings.Contains(text, "semantic-authority: meta/reflexive-normalize") {
+	if !strings.Contains(text, "backend-artifact: generated from semantic-ir.json") || !strings.Contains(text, "semantic-authority: meta/") || !strings.Contains(text, ".gooo") {
 		errors = append(errors, label+" output is not marked as a derived backend artifact")
 	}
 	for _, field := range []string{"Decision", "Stage", "Step", "Reason", "UnknownClass", "NextOperation", "CounterexampleDigest"} {
