@@ -15,9 +15,12 @@ generated Go as `BACKEND_ONLY`, with the source graph as semantic authority.
 
 The first run reads a `.gooo` source file and writes `semantic-ir.json`. The
 candidate run receives that exact first IR path as its input and writes a
-second IR. The independent verifier requires byte equality for both IR and
-backend output, checks the source → IR → generated lineage, and confirms that
-the baseline output remains available as a rollback target.
+second IR. Both runs also write `terminal-record.json`; the record is copied
+into `receipt.json` and `generated.go`. The independent verifier requires byte
+equality for both IR, backend, and terminal output, checks the source → IR →
+generated lineage, validates the minimal cause-edge frontier and counterexample
+digest, and confirms that the baseline output remains available as a rollback
+target.
 
 ## Fixed denominator
 
@@ -33,6 +36,12 @@ three cases:
 The phase reduces states in the fixed order `REFUTED > UNKNOWN > CLOSED`.
 An UNKNOWN is not treated as success and cannot be promoted by a human note.
 
+The v0.3 corpus in `contracts/terminal-corpus-v1.json` contains two CLOSED,
+five distinct UNKNOWN classes, and two REFUTED cases. Each is run against both
+the three-activity legacy phase and the four-activity split phase, for 18
+selected executions. The original three-case denominator remains the locked
+evolution-trial control.
+
 ## Upstream boundary
 
 `contracts/upstream-lock-v1.json` pins the release tag object, release target
@@ -47,17 +56,17 @@ into a candidate phase. The generated candidate must byte-match the committed
 ## Metrics
 
 The CI metric file contains exact integer fields for `go_files`, `gooo_files`,
-their physical lines, tracked files, subdirectories, generated output count and
-bytes, peak RSS, compile/build/test/conformance/integration wall milliseconds, and
-`tests.total`, `tests.executed`, `tests.reused`, `tests.failed`, and
-`tests.unknown`. The root `README.md` is explicitly excluded from the tracked
-file inventory. The three fixed semantic cases are executed afresh, so reuse is
-zero; the one UNKNOWN case is counted under `tests.unknown` and is not a test
-failure.
+their physical lines, regular files, subdirectories, generated artifact count
+and bytes, peak RSS, compile/build/test/conformance/terminal-conformance/
+integration wall milliseconds, and `tests.total`, `tests.selected`,
+`tests.executed`, `tests.reused`, `tests.failed`, and `tests.unknown`. The root
+`README.md` is explicitly excluded from the regular-file inventory. The
+terminal corpus is executed afresh, so reuse is zero; its ten UNKNOWN topology
+runs are evidence, not test failures.
 
 The historical `v0.1.0` release is retained without mutation and is recorded as
 non-durable because its GitHub release API object reports `immutable=false`.
-The corrective release workflow uses an unused version (default `v0.2.0`),
+The corrective release workflow uses an unused version (default `v0.3.0`),
 refuses any existing tag or release, and never repairs a failed tag by deleting
 or rewriting it. After the repository immutable-releases setting is enabled
 through the official REST API, the workflow creates one annotated tag for the

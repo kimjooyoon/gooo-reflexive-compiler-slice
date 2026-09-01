@@ -77,7 +77,7 @@ func parsePhase(path string) (Phase, error) {
 		return Phase{}, err
 	}
 	phase := Phase{
-		ID: digestPhaseID(), Digest: digest,
+		SourcePath: path, ID: digestPhaseID(), Digest: digest,
 		Precedence: []string{DecisionRefuted, DecisionUnknown, DecisionClosed},
 	}
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
@@ -570,6 +570,27 @@ func parseSource(data []byte) (string, []Declaration, error) {
 		return "", nil, fmt.Errorf("namespace is required")
 	}
 	return namespace, declarations, nil
+}
+
+func sourceUnknownClass(err error) string {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	switch {
+	case strings.Contains(message, "namespace is required"):
+		return "SYNTAX_ERROR"
+	case strings.Contains(message, "invalid namespace"):
+		return "DUPLICATE_NAMESPACE"
+	case strings.Contains(message, "unsupported declaration"):
+		return "UNSUPPORTED_DECLARATION"
+	case strings.Contains(message, "entity stable id is invalid"):
+		return "INVALID_DECLARATION"
+	case strings.Contains(message, "entity must") || strings.Contains(message, "activity signature"):
+		return "INVALID_DECLARATION"
+	default:
+		return "SOURCE_PARSE_ERROR"
+	}
 }
 
 func parseEntity(line string) (Declaration, error) {

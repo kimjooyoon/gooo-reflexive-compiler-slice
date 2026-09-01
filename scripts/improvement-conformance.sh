@@ -66,7 +66,12 @@ after_refuted=0
 while IFS=$'\t' read -r case_id source expected; do
 	[ -n "$case_id" ] || continue
 	source_path="$BASELINE_ROOT/$source"
-	input_digest=$(sha256sum "$source_path" | awk '{print "sha256:" $1}')
+	source_digest=$(sha256sum "$source_path" | awk '{print "sha256:" $1}')
+	scenario_json=$(jq -c --arg id "$case_id" '.cases[] | select(.id == $id)' "$contract")
+	scenario_digest=""
+	if [ -n "$scenario_json" ]; then
+		scenario_digest=$(printf '%s' "$scenario_json" | sha256sum | awk '{print "sha256:" $1}')
+	fi
 	case_dir="$work/improvement"
 	before_base="$case_dir/before/$case_id/baseline"
 	before_candidate="$case_dir/before/$case_id/candidate"
@@ -148,10 +153,15 @@ while IFS=$'\t' read -r case_id source expected; do
 	after_execution_digest=""
 	if [ -f "$before_candidate/receipt.json" ]; then before_execution_digest=$(jq -r '.execution_digest' "$before_candidate/receipt.json"); fi
 	if [ -f "$after_candidate/receipt.json" ]; then after_execution_digest=$(jq -r '.execution_digest' "$after_candidate/receipt.json"); fi
-	jq -n --arg id "$case_id" --arg source "$source" --arg expected "$expected" --arg input "$input_digest" \
+	pair_eligible=false
+	if [ -n "$scenario_digest" ] && [ -n "$source_digest" ] && [ -n "$contract_digest" ] && [ -n "$toolchain_digest" ]; then
+		pair_eligible=true
+	fi
+	jq -n --arg id "$case_id" --arg source "$source" --arg expected "$expected" \
+		--arg scenario "$scenario_digest" --arg source_digest "$source_digest" --arg contract_digest "$contract_digest" --arg toolchain_digest "$toolchain_digest" \
 		--arg before "$before_decision" --arg after "$after_decision" --arg before_digest "$before_execution_digest" --arg after_digest "$after_execution_digest" \
-		--argjson before_status "$before_candidate_status" --argjson after_status "$after_candidate_status" --argjson verify_status "$after_verify_status" \
-		'{id:$id,source:$source,expected:$expected,input_digest:$input,before:{decision:$before,accepted:($before_status == 0),execution_digest:$before_digest},after:{decision:$after,accepted:($after_status == 0 and $verify_status == 0),execution_digest:$after_digest}}' \
+		--argjson before_status "$before_candidate_status" --argjson after_status "$after_candidate_status" --argjson verify_status "$after_verify_status" --argjson pair_eligible "$pair_eligible" \
+		'{id:$id,source:$source,expected:$expected,digests:{scenario:$scenario,source:$source_digest,contract:$contract_digest,toolchain:$toolchain_digest},pair_eligible:$pair_eligible,before:{decision:$before,accepted:($before_status == 0),execution_digest:$before_digest},after:{decision:$after,accepted:($after_status == 0 and $verify_status == 0),execution_digest:$after_digest}}' \
 		>> "$case_records"
 done < <(jq -r '.cases[] | [.id,.source,.expected] | @tsv' "$contract")
 
@@ -161,8 +171,19 @@ if [ "$integration_wall_ms" -lt 1 ]; then integration_wall_ms=1; fi
 cases_json=$(jq -s . "$case_records")
 before_summary_json=$(cat "$before_summary")
 after_summary_json=$(cat "$after_summary")
+	pair_eligible_count=$(jq -s '[.[] | select(.pair_eligible == true)] | length' "$case_records")
+	status="UNKNOWN"
+	closure_unknown_class="DIGEST_PAIR_MISSING"
+	closure_next_operation="BIND_SCENARIO_SOURCE_CONTRACT_TOOLCHAIN_DIGESTS"
+	closure_blocked_by='["SCENARIO_DIGEST","SOURCE_DIGEST","CONTRACT_DIGEST","TOOLCHAIN_DIGEST"]'
+	if [ "$pair_eligible_count" -eq 3 ] && [ "$after_accepted" -eq 3 ]; then
+		status="CLOSED"
+		closure_unknown_class=""
+		closure_next_operation="RETAIN_BASELINE_AND_CANDIDATE_EVIDENCE"
+		closure_blocked_by='[]'
+	fi
 
-jq -n --arg schema "gooo/reflexive-improvement/v1" --arg status "CLOSED" \
+jq -n --arg schema "gooo/reflexive-improvement/v1" --arg status "$status" \
 	--arg baseline_phase_digest "$baseline_phase_digest" --arg candidate_phase_digest "$candidate_phase_digest" \
 	--arg candidate_bundle_digest "$(jq -r '.trial.candidate_bundle.digest' "$root/contracts/evolution-trial-lock-v1.json")" \
 	--arg trial_candidate_phase_digest "$(jq -r '.trial.candidate_phase.digest' "$root/contracts/evolution-trial-lock-v1.json")" \
@@ -173,13 +194,15 @@ jq -n --arg schema "gooo/reflexive-improvement/v1" --arg status "CLOSED" \
 	--argjson cases "$cases_json" --argjson before_accepted "$before_accepted" --argjson after_accepted "$after_accepted" \
 	--argjson before_closed "$before_closed" --argjson before_unknown "$before_unknown" --argjson before_refuted "$before_refuted" \
 	--argjson after_closed "$after_closed" --argjson after_unknown "$after_unknown" --argjson after_refuted "$after_refuted" \
-	--argjson peak_rss_kib "$max_rss_kib" --argjson integration_wall_ms "$integration_wall_ms" \
+		--argjson pair_eligible_count "$pair_eligible_count" --arg closure_unknown_class "$closure_unknown_class" \
+		--arg closure_next_operation "$closure_next_operation" --argjson closure_blocked_by "$closure_blocked_by" \
+		--argjson peak_rss_kib "$max_rss_kib" --argjson integration_wall_ms "$integration_wall_ms" \
 	--slurpfile lock "$root/contracts/evolution-trial-lock-v1.json" \
-	'{schema:$schema,status:$status,trial:{repository:$lock[0].trial.repository,release_id:$lock[0].trial.release_id,tag:$lock[0].trial.tag,immutable:$lock[0].trial.immutable,tag_object:$lock[0].trial.tag_object,target_commit:$lock[0].trial.target_commit,main_run_id:$lock[0].trial.main_run_id,main_job_id:$lock[0].trial.main_job_id,main_artifact:$lock[0].trial.main_artifact,release_audit_run_id:$lock[0].trial.release_audit_run_id,release_audit_job_id:$lock[0].trial.release_audit_job_id,release_audit_artifact:$lock[0].trial.release_audit_artifact,candidate_phase_digest:$trial_candidate_phase_digest,counterexample:$lock[0].trial.counterexample},candidate:{bundle_digest:$candidate_bundle_digest,candidate_digest:$candidate_digest,delta_digest:$delta_digest,applied_phase_digest:$candidate_phase_digest,mechanically_matches_root:true},topology:{before:$before_topology,after:$after_topology},cases:$cases,distributions:{before:{CLOSED:$before_closed,UNKNOWN:$before_unknown,REFUTED:$before_refuted},after:{CLOSED:$after_closed,UNKNOWN:$after_unknown,REFUTED:$after_refuted}},resolution_pairs:{supported_valid_topology_cardinalities:{before:$before_topology.localization_stages,after:$after_topology.localization_stages,unit:"valid-topology-cardinalities"},accepted_trial_candidate_cases:{before:$before_accepted,after:$after_accepted,unit:"cases"},coarse_localization_stages:{before:$before_topology.localization_stages,after:$after_topology.localization_stages,unit:"phase-localization-stages"}},same_digest_conditions:{source_tree_digest:$source_tree_digest,contract_digest:$contract_digest,toolchain_digest:$toolchain_digest},closure_receipt:{schema:"gooo/reflexive-improvement-closure/v1",state:"CLOSED",stage:"IMPROVEMENT",step:"RESOLVE_TRIAL_COUNTEREXAMPLE",reason:"GRAPH_SEMANTICS_ACCEPT_SPLIT_CANDIDATE",unknown_class:"",next_operation:"RETAIN_BASELINE_AND_CANDIDATE_EVIDENCE",blocked_by:[],trial_refutation_state:"REFUTED",trial_refutation_error:$lock[0].trial.counterexample.error},integration:{wall_ms:$integration_wall_ms,peak_rss_kib:$peak_rss_kib},authority:{verification_authority:"GITHUB_ACTIONS",repository_writes:0,upstream_writes:0,local_test_executions:0,protected_core_adoption:0}}' \
+	'{schema:$schema,status:$status,trial:{repository:$lock[0].trial.repository,release_id:$lock[0].trial.release_id,tag:$lock[0].trial.tag,immutable:$lock[0].trial.immutable,tag_object:$lock[0].trial.tag_object,target_commit:$lock[0].trial.target_commit,main_run_id:$lock[0].trial.main_run_id,main_job_id:$lock[0].trial.main_job_id,main_artifact:$lock[0].trial.main_artifact,release_audit_run_id:$lock[0].trial.release_audit_run_id,release_audit_job_id:$lock[0].trial.release_audit_job_id,release_audit_artifact:$lock[0].trial.release_audit_artifact,candidate_phase_digest:$trial_candidate_phase_digest,counterexample:$lock[0].trial.counterexample},candidate:{bundle_digest:$candidate_bundle_digest,candidate_digest:$candidate_digest,delta_digest:$delta_digest,applied_phase_digest:$candidate_phase_digest,mechanically_matches_root:true},topology:{before:$before_topology,after:$after_topology},cases:$cases,digest_pair_evidence:{eligible_cases:$pair_eligible_count,required_cases:3,exact:($pair_eligible_count == 3)},distributions:{before:{CLOSED:$before_closed,UNKNOWN:$before_unknown,REFUTED:$before_refuted},after:{CLOSED:$after_closed,UNKNOWN:$after_unknown,REFUTED:$after_refuted}},resolution_pairs:{supported_valid_topology_cardinalities:{before:$before_topology.localization_stages,after:$after_topology.localization_stages,unit:"valid-topology-cardinalities"},accepted_trial_candidate_cases:{before:$before_accepted,after:$after_accepted,unit:"cases"},coarse_localization_stages:{before:$before_topology.localization_stages,after:$after_topology.localization_stages,unit:"phase-localization-stages"}},same_digest_conditions:{source_tree_digest:$source_tree_digest,contract_digest:$contract_digest,toolchain_digest:$toolchain_digest},closure_receipt:{schema:"gooo/reflexive-improvement-closure/v1",state:$status,stage:"IMPROVEMENT",step:(if $status == "CLOSED" then "RESOLVE_TRIAL_COUNTEREXAMPLE" else "REQUIRE_EXACT_BEFORE_AFTER_PAIR" end),reason:(if $status == "CLOSED" then "GRAPH_SEMANTICS_ACCEPT_SPLIT_CANDIDATE" else "BEFORE_AFTER_DIGEST_PAIR_MISSING" end),unknown_class:$closure_unknown_class,next_operation:$closure_next_operation,blocked_by:$closure_blocked_by,trial_refutation_state:"REFUTED",trial_refutation_error:$lock[0].trial.counterexample.error},integration:{wall_ms:$integration_wall_ms,peak_rss_kib:$peak_rss_kib},authority:{verification_authority:"GITHUB_ACTIONS",repository_writes:0,upstream_writes:0,local_test_executions:0,protected_core_adoption:0}}' \
 	> "$work/improvement-report.json"
 
 jq -e --argjson cases "$cases_json" --argjson before "$before_accepted" --argjson after "$after_accepted" '
-	.status == "CLOSED" and
+		.status == "CLOSED" and .digest_pair_evidence.exact == true and
 	.resolution_pairs.supported_valid_topology_cardinalities.before == 1 and
 	.resolution_pairs.supported_valid_topology_cardinalities.after == 2 and
 	.resolution_pairs.accepted_trial_candidate_cases.before == $before and

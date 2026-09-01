@@ -10,7 +10,7 @@ on:
       release_version:
         description: New unused semantic version; never reuse a failed tag
         required: true
-        default: '0.2.0'
+        default: '0.3.0'
         type: string
 
 permissions:
@@ -88,6 +88,13 @@ jobs:
           set -euo pipefail
           started=$(date +%s%3N)
           CONFORMANCE_START_MS="$started" bash ./scripts/conformance.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
+
+      - name: Re-run explanation-carrying terminal corpus
+        run: |
+          set -euo pipefail
+          bash ./scripts/terminal-conformance.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" \
             "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
             "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
 

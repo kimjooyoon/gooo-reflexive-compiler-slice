@@ -47,6 +47,12 @@ jobs:
             "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
             "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
 
+      - name: Explanation-carrying terminal corpus
+        run: |
+          bash ./scripts/terminal-conformance.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-compiler-slice" \
+            "$GITHUB_WORKSPACE/.ci/bin/gooo-reflexive-verify"
+
       - name: Self-improvement conformance
         run: |
           ./scripts/improvement-conformance.sh "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/.ci" \
@@ -74,7 +80,10 @@ jobs:
             (.wall_ms.test | type == "number" and floor == .) and
             (.wall_ms.conformance | type == "number" and floor == .) and
             (.wall_ms.integration | type == "number" and floor == .) and
-            (.tests.total == 3 and .tests.executed == 3 and .tests.reused == 0 and .tests.failed == 0 and .tests.unknown == 1) and
+            (.inventory.regular_files | type == "number" and floor == .) and
+            (.generated_artifacts.count | type == "number" and floor == .) and
+            (.generated_artifacts.bytes | type == "number" and floor == .) and
+            (.tests.total == 18 and .tests.selected == 18 and .tests.executed == 18 and .tests.reused == 0 and .tests.failed == 0 and .tests.unknown == 10) and
             (.resources.peak_rss_kib | type == "number" and floor == .) and
             (.improvement.status == "CLOSED") and
             (.improvement.resolution_pairs.supported_valid_topology_cardinalities.before == 1) and

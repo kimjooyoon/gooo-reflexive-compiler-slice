@@ -41,18 +41,20 @@ type refutation struct {
 }
 
 type receipt struct {
-	Schema      string          `json:"schema"`
-	RunID       string          `json:"run_id"`
-	Role        string          `json:"role"`
-	InputKind   string          `json:"input_kind"`
-	Phase       fileLineage     `json:"phase"`
-	Source      fileLineage     `json:"source"`
-	Input       fileLineage     `json:"input"`
-	SemanticIR  artifactLineage `json:"semantic_ir"`
-	Generated   artifactLineage `json:"generated"`
-	Decision    string          `json:"decision"`
-	Unknowns    []unknown       `json:"unknowns"`
-	Refutations []refutation    `json:"refutations"`
+	Schema         string          `json:"schema"`
+	RunID          string          `json:"run_id"`
+	Role           string          `json:"role"`
+	InputKind      string          `json:"input_kind"`
+	Phase          fileLineage     `json:"phase"`
+	Source         fileLineage     `json:"source"`
+	Input          fileLineage     `json:"input"`
+	SemanticIR     artifactLineage `json:"semantic_ir"`
+	Generated      artifactLineage `json:"generated"`
+	Terminal       artifactLineage `json:"terminal"`
+	Decision       string          `json:"decision"`
+	Unknowns       []unknown       `json:"unknowns"`
+	Refutations    []refutation    `json:"refutations"`
+	TerminalRecord terminalRecord  `json:"terminal_record"`
 }
 
 type fileLineage struct {
@@ -64,6 +66,27 @@ type artifactLineage struct {
 	Path   string `json:"path"`
 	Digest string `json:"digest"`
 	Kind   string `json:"kind"`
+}
+
+type frontierEdge struct {
+	From      string `json:"from"`
+	To        string `json:"to"`
+	ValueType string `json:"value_type"`
+}
+
+type terminalRecord struct {
+	Schema               string         `json:"schema"`
+	Decision             string         `json:"decision"`
+	Stage                string         `json:"stage"`
+	Step                 string         `json:"step"`
+	Reason               string         `json:"reason"`
+	UnknownClass         string         `json:"unknown_class"`
+	NextOperation        string         `json:"next_operation"`
+	BlockedBy            []string       `json:"blocked_by"`
+	CauseEdge            frontierEdge   `json:"cause_edge"`
+	MinimalFrontier      []frontierEdge `json:"minimal_frontier"`
+	Counterexample       string         `json:"counterexample"`
+	CounterexampleDigest string         `json:"counterexample_digest"`
 }
 
 type semanticIR struct {
@@ -79,6 +102,11 @@ type semanticIR struct {
 		Parameters []string `json:"parameters,omitempty"`
 		Result     string   `json:"result,omitempty"`
 	} `json:"declarations"`
+	Evidence struct {
+		Unknowns    []unknown    `json:"unknowns"`
+		Refutations []refutation `json:"refutations"`
+	} `json:"evidence"`
+	TerminalRecord terminalRecord `json:"terminal_record"`
 }
 
 type lineageEvidence struct {
@@ -88,6 +116,8 @@ type lineageEvidence struct {
 	CandidateIR        artifactLineage `json:"candidate_ir"`
 	BaselineGenerated  artifactLineage `json:"baseline_generated"`
 	CandidateGenerated artifactLineage `json:"candidate_generated"`
+	BaselineTerminal   artifactLineage `json:"baseline_terminal"`
+	CandidateTerminal  artifactLineage `json:"candidate_terminal"`
 }
 
 type behavior struct {
@@ -115,6 +145,7 @@ type Report struct {
 	CandidateBehavior    behavior        `json:"candidate_behavior"`
 	Rollback             rollback        `json:"rollback"`
 	Lineage              lineageEvidence `json:"lineage"`
+	TerminalRecord       terminalRecord  `json:"terminal_record"`
 	Unknowns             []unknown       `json:"unknowns"`
 	Refutations          []refutation    `json:"refutations"`
 	Errors               []string        `json:"errors"`
@@ -126,6 +157,7 @@ type executionProjection struct {
 	Refutations []refutation
 	SemanticIR  string
 	Generated   string
+	Terminal    string
 }
 
 func Verify(options Options) (Report, error) {
@@ -160,7 +192,6 @@ func Verify(options Options) (Report, error) {
 	if err != nil {
 		return report, err
 	}
-	report.Errors = append(report.Errors, phaseGraphErrors(phase)...)
 	sourceData, sourceDigest, err := readDigest(sourcePath)
 	if err != nil {
 		return report, err
@@ -194,21 +225,49 @@ func Verify(options Options) (Report, error) {
 	if err != nil {
 		return report, err
 	}
+	baselineTerminalData, baselineTerminalDigest, err := readDigest(baseline.Terminal.Path)
+	if err != nil {
+		return report, err
+	}
+	candidateTerminalData, candidateTerminalDigest, err := readDigest(candidate.Terminal.Path)
+	if err != nil {
+		return report, err
+	}
+	var baselineTerminal terminalRecord
+	if err := json.Unmarshal(baselineTerminalData, &baselineTerminal); err != nil {
+		report.Errors = append(report.Errors, "baseline terminal record is not JSON")
+	}
+	var candidateTerminal terminalRecord
+	if err := json.Unmarshal(candidateTerminalData, &candidateTerminal); err != nil {
+		report.Errors = append(report.Errors, "candidate terminal record is not JSON")
+	}
+	report.Errors = append(report.Errors, validateTerminal(baseline, baselineTerminal, baselineTerminalData, baselineTerminalDigest, "baseline")...)
+	report.Errors = append(report.Errors, validateTerminal(candidate, candidateTerminal, candidateTerminalData, candidateTerminalDigest, "candidate")...)
+	report.Errors = append(report.Errors, validateFrontier(phase, baselineTerminal, "baseline")...)
+	report.Errors = append(report.Errors, validateFrontier(phase, candidateTerminal, "candidate")...)
+	if baseline.Terminal.Digest != baselineTerminalDigest || candidate.Terminal.Digest != candidateTerminalDigest {
+		report.Errors = append(report.Errors, "terminal record lineage digest is not byte-derived")
+	}
+	if !bytes.Equal(baselineTerminalData, candidateTerminalData) {
+		report.Errors = append(report.Errors, "first and rerun terminal record bytes differ")
+	}
 	var ir semanticIR
 	if err := json.Unmarshal(baselineIRData, &ir); err != nil {
 		report.Errors = append(report.Errors, "baseline semantic IR is not JSON")
 	} else {
 		report.Errors = append(report.Errors, validateIR(ir, phaseDigest, sourceDigest)...)
+		report.Errors = append(report.Errors, validateIRTerminal(ir, baselineTerminal, "baseline")...)
 		report.Errors = append(report.Errors, validateRefutationEvidence(ir, baseline.Refutations, "baseline")...)
-		report.Errors = append(report.Errors, validateGenerated(baselineGenerated, ir, "baseline")...)
+		report.Errors = append(report.Errors, validateGenerated(baselineGenerated, ir, baselineTerminal, "baseline")...)
 	}
 	var candidateIR semanticIR
 	if err := json.Unmarshal(candidateIRData, &candidateIR); err != nil {
 		report.Errors = append(report.Errors, "candidate semantic IR is not JSON")
 	} else {
 		report.Errors = append(report.Errors, validateIR(candidateIR, phaseDigest, sourceDigest)...)
+		report.Errors = append(report.Errors, validateIRTerminal(candidateIR, candidateTerminal, "candidate")...)
 		report.Errors = append(report.Errors, validateRefutationEvidence(candidateIR, candidate.Refutations, "candidate")...)
-		report.Errors = append(report.Errors, validateGenerated(candidateGenerated, candidateIR, "candidate")...)
+		report.Errors = append(report.Errors, validateGenerated(candidateGenerated, candidateIR, candidateTerminal, "candidate")...)
 	}
 	if !bytes.Equal(baselineIRData, candidateIRData) {
 		report.Errors = append(report.Errors, "first and rerun semantic IR bytes differ")
@@ -226,8 +285,8 @@ func Verify(options Options) (Report, error) {
 		report.Errors = append(report.Errors, "generated artifact lineage digest is not byte-derived")
 	}
 
-	baselineExecution := executionDigest(baseline, baselineIRDigest, baselineGeneratedDigest)
-	candidateExecution := executionDigest(candidate, candidateIRDigest, candidateGeneratedDigest)
+	baselineExecution := executionDigest(baseline, baselineIRDigest, baselineGeneratedDigest, baselineTerminalDigest)
+	candidateExecution := executionDigest(candidate, candidateIRDigest, candidateGeneratedDigest, candidateTerminalDigest)
 	report.FirstExecutionDigest = baselineExecution
 	report.RerunExecutionDigest = candidateExecution
 	report.BaselineBehavior = behavior{InputKind: baseline.InputKind, Decision: baseline.Decision, Digest: baselineExecution}
@@ -254,7 +313,9 @@ func Verify(options Options) (Report, error) {
 		Phase: fileLineage{Path: phasePath, Digest: phaseDigest}, Source: fileLineage{Path: sourcePath, Digest: sourceDigest},
 		BaselineIR: baseline.SemanticIR, CandidateIR: candidate.SemanticIR,
 		BaselineGenerated: baseline.Generated, CandidateGenerated: candidate.Generated,
+		BaselineTerminal: baseline.Terminal, CandidateTerminal: candidate.Terminal,
 	}
+	report.TerminalRecord = baselineTerminal
 	if report.Rollback.Possible && !report.Rollback.BaselineRetained {
 		report.Errors = append(report.Errors, "rollback target was not retained")
 	}
@@ -304,6 +365,9 @@ func readReceipt(path string) (receipt, map[string]json.RawMessage, error) {
 
 func validateReceipt(value receipt, label, inputKind, phasePath, sourcePath, phaseDigest, sourceDigest string) []string {
 	errors := []string{}
+	if value.Schema != "gooo/reflexive-compiler-receipt/v2" {
+		errors = append(errors, label+" receipt schema mismatch")
+	}
 	if value.Role != label {
 		errors = append(errors, label+" role mismatch")
 	}
@@ -342,6 +406,115 @@ func validateUnknownObjects(raw map[string]json.RawMessage, label string) []stri
 	return errors
 }
 
+func validateTerminal(value receipt, terminal terminalRecord, data []byte, digest, label string) []string {
+	errors := []string{}
+	if terminal.Schema != "gooo/reflexive-terminal-record/v1" {
+		errors = append(errors, label+" terminal record schema mismatch")
+	}
+	if terminal.Decision != value.Decision || terminal.Decision != reduce(value.Unknowns, value.Refutations) {
+		errors = append(errors, label+" terminal decision does not follow precedence")
+	}
+	if terminal.Stage == "" || terminal.Step == "" || terminal.Reason == "" || terminal.CounterexampleDigest == "" {
+		errors = append(errors, label+" terminal explanation is incomplete")
+	}
+	if terminal.Decision == "UNKNOWN" && (terminal.UnknownClass == "" || terminal.NextOperation == "" || terminal.BlockedBy == nil) {
+		errors = append(errors, label+" UNKNOWN terminal record is missing one of six required fields")
+	}
+	switch terminal.Decision {
+	case "REFUTED":
+		if len(value.Refutations) == 0 {
+			errors = append(errors, label+" REFUTED terminal record has no refutation")
+		} else {
+			first := value.Refutations[0]
+			if terminal.Stage != first.Stage || terminal.Step != first.Step || terminal.Reason != first.Reason || terminal.Counterexample != first.Counterexample {
+				errors = append(errors, label+" terminal record does not preserve the first refutation")
+			}
+			if terminal.CounterexampleDigest != digestEvidence(first) {
+				errors = append(errors, label+" terminal counterexample digest is not evidence-derived")
+			}
+		}
+	case "UNKNOWN":
+		if len(value.Unknowns) == 0 {
+			errors = append(errors, label+" UNKNOWN terminal record has no unknown")
+		} else {
+			first := value.Unknowns[0]
+			if terminal.Stage != first.Stage || terminal.Step != first.Step || terminal.Reason != first.Reason || terminal.UnknownClass != first.UnknownClass || terminal.NextOperation != first.NextOperation || !equalStringSlices(terminal.BlockedBy, first.BlockedBy) {
+				errors = append(errors, label+" terminal record does not preserve the first UNKNOWN explanation")
+			}
+			if terminal.CounterexampleDigest != digestEvidence(first) {
+				errors = append(errors, label+" terminal explanation digest is not evidence-derived")
+			}
+		}
+	case "CLOSED":
+		if terminal.Stage != "TERMINAL" || terminal.Step != "CLOSE_AFTER_VALIDATION" || terminal.Reason != "NO_UNKNOWN_OR_REFUTATION" || terminal.NextOperation != "RETAIN_RESULT" || len(terminal.BlockedBy) != 0 || terminal.Counterexample != "" {
+			errors = append(errors, label+" CLOSED terminal explanation is not canonical")
+		}
+		closedEvidence := struct {
+			Decision string `json:"decision"`
+			Stage    string `json:"stage"`
+			Step     string `json:"step"`
+			Reason   string `json:"reason"`
+		}{Decision: terminal.Decision, Stage: terminal.Stage, Step: terminal.Step, Reason: terminal.Reason}
+		if terminal.CounterexampleDigest != digestEvidence(closedEvidence) {
+			errors = append(errors, label+" CLOSED explanation digest is not evidence-derived")
+		}
+	}
+	if bytesDigest(data) != digest {
+		errors = append(errors, label+" terminal record digest is not byte-derived")
+	}
+	return errors
+}
+
+func validateFrontier(phase compiler.Phase, terminal terminalRecord, label string) []string {
+	if terminal.Decision == "CLOSED" {
+		if len(terminal.MinimalFrontier) != 0 {
+			return []string{label + " CLOSED terminal has a non-empty cause frontier"}
+		}
+		return nil
+	}
+	if len(terminal.MinimalFrontier) == 0 {
+		return []string{label + " terminal record has no minimal frontier"}
+	}
+	if terminal.CauseEdge != terminal.MinimalFrontier[0] {
+		return []string{label + " terminal cause edge is not the first minimal-frontier edge"}
+	}
+	errors := []string{}
+	for index, edge := range terminal.MinimalFrontier {
+		if edge.From == "" || edge.To == "" || edge.ValueType == "" {
+			errors = append(errors, fmt.Sprintf("%s minimal frontier edge %d is incomplete", label, index))
+		}
+	}
+	if terminal.Stage == "NORMALIZE" || terminal.Stage == "SOURCE_READ" || terminal.Stage == "SEMANTIC_IR_READ" {
+		if len(phase.Activities) == 0 {
+			errors = append(errors, label+" terminal frontier has no phase activity context")
+		}
+	}
+	return errors
+}
+
+func digestEvidence(value any) string {
+	data, _ := json.Marshal(value)
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func bytesDigest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func equalStringSlices(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
 func validateIR(value semanticIR, phaseDigest, sourceDigest string) []string {
 	errors := []string{}
 	if value.Schema != "gooo/reflexive-semantic-ir/v1" {
@@ -359,6 +532,18 @@ func validateIR(value semanticIR, phaseDigest, sourceDigest string) []string {
 		}
 	}
 	return errors
+}
+
+func validateIRTerminal(value semanticIR, expected terminalRecord, label string) []string {
+	actual, _ := json.Marshal(value.TerminalRecord)
+	want, _ := json.Marshal(expected)
+	if !bytes.Equal(actual, want) {
+		return []string{label + " semantic IR terminal record differs from terminal artifact"}
+	}
+	if len(value.Evidence.Unknowns) == 0 && len(value.Evidence.Refutations) == 0 && expected.Decision != "CLOSED" {
+		return []string{label + " semantic IR omitted terminal evidence"}
+	}
+	return nil
 }
 
 func validateRefutationEvidence(value semanticIR, refutations []refutation, label string) []string {
@@ -388,11 +573,22 @@ func validateRefutationEvidence(value semanticIR, refutations []refutation, labe
 	return nil
 }
 
-func validateGenerated(data []byte, value semanticIR, label string) []string {
+func validateGenerated(data []byte, value semanticIR, terminal terminalRecord, label string) []string {
 	errors := []string{}
 	text := string(data)
-	if !strings.Contains(text, "backend-artifact: generated from semantic-ir.json") || !strings.Contains(text, "semantic-authority: meta/reflexive-normalize.gooo") {
+	if !strings.Contains(text, "backend-artifact: generated from semantic-ir.json") || !strings.Contains(text, "semantic-authority: meta/") || !strings.Contains(text, ".gooo") {
 		errors = append(errors, label+" output is not marked as a derived backend artifact")
+	}
+	for _, field := range []string{"Decision", "Stage", "Step", "Reason", "UnknownClass", "NextOperation", "CounterexampleDigest"} {
+		if !strings.Contains(text, field+": ") {
+			errors = append(errors, label+" generated output omitted terminal field "+field)
+		}
+	}
+	if !strings.Contains(text, "Decision: "+fmt.Sprintf("%q", terminal.Decision)) ||
+		!strings.Contains(text, "Stage: "+fmt.Sprintf("%q", terminal.Stage)) ||
+		!strings.Contains(text, "Step: "+fmt.Sprintf("%q", terminal.Step)) ||
+		!strings.Contains(text, "CounterexampleDigest: "+fmt.Sprintf("%q", terminal.CounterexampleDigest)) {
+		errors = append(errors, label+" generated output does not preserve terminal explanation")
 	}
 	for _, declaration := range value.Declarations {
 		if !strings.Contains(text, fmt.Sprintf("StableID: %q", declaration.StableID)) {
@@ -411,10 +607,10 @@ func readDigest(path string) ([]byte, string, error) {
 	return data, "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func executionDigest(value receipt, irDigest, generatedDigest string) string {
+func executionDigest(value receipt, irDigest, generatedDigest, terminalDigest string) string {
 	data, _ := json.Marshal(executionProjection{
 		Decision: value.Decision, Unknowns: value.Unknowns, Refutations: value.Refutations,
-		SemanticIR: irDigest, Generated: generatedDigest,
+		SemanticIR: irDigest, Generated: generatedDigest, Terminal: terminalDigest,
 	})
 	sum := sha256.Sum256(data)
 	return "sha256:" + hex.EncodeToString(sum[:])

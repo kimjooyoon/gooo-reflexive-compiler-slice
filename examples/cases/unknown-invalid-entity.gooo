@@ -1,0 +1,5 @@
+package reflexive_input
+namespace reflexive_input
+
+entity RequiredNode id required-without-quotes
+activity StableTask(RequiredNode) -> RequiredNode
