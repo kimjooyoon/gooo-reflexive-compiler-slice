@@ -124,6 +124,11 @@ func parsePhase(path string) (Phase, error) {
 				continue
 			}
 			phase.Activities = append(phase.Activities, activity)
+		case strings.HasPrefix(line, "package "), strings.HasPrefix(line, "namespace "), strings.HasPrefix(line, "entity "):
+			// Declarative metadata is retained for compatibility with the legacy phase format.
+		default:
+			declaration := strings.Fields(line)[0]
+			phase.GraphUnknowns = append(phase.GraphUnknowns, phaseUnknown("PARSE", "READ_PHASE_DECLARATION", "PHASE_DECLARATION_NOT_RECOGNIZED", "PARSE_PHASE_GRAPH", "REPAIR_PHASE_DECLARATION", declaration))
 		}
 	}
 	if err := scanner.Err(); err != nil {

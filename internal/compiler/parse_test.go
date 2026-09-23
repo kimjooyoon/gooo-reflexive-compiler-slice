@@ -216,3 +216,21 @@ edge ValidateStableIDs -> VerifyReplay : SemanticIR
 		t.Fatalf("summary = %#v", summary)
 	}
 }
+
+func TestPhaseGraphReportsUnknownDeclarationAsUnknown(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "phase.gooo")
+	phase := "topology reflexive.normalize.v1\nmystery declaration\n"
+	if err := os.WriteFile(path, []byte(phase), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	summary, err := SummarizePhase(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, unknown := range summary.GraphUnknowns {
+		if unknown.Reason == "PHASE_DECLARATION_NOT_RECOGNIZED" && unknown.BlockedBy != nil && len(unknown.BlockedBy) == 1 && unknown.BlockedBy[0] == "mystery" {
+			return
+		}
+	}
+	t.Fatalf("summary did not preserve unknown declaration evidence: %#v", summary)
+}
