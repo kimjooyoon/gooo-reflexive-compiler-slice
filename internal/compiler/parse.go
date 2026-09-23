@@ -86,6 +86,7 @@ func parsePhase(path string) (Phase, error) {
 		if line == "" {
 			continue
 		}
+		fromComment := strings.HasPrefix(line, "#")
 		if strings.HasPrefix(line, "#") {
 			line = strings.TrimSpace(strings.TrimPrefix(line, "#"))
 			if line == "" {
@@ -127,6 +128,9 @@ func parsePhase(path string) (Phase, error) {
 		case strings.HasPrefix(line, "gooo "), strings.HasPrefix(line, "package "), strings.HasPrefix(line, "namespace "), strings.HasPrefix(line, "entity "):
 			// Structural source declarations are carried alongside phase declarations.
 		default:
+			if fromComment {
+				continue
+			}
 			phase.GraphUnknowns = append(phase.GraphUnknowns, phaseUnknown("PARSE", "READ_DECLARATION", "UNSUPPORTED_DECLARATION", "PARSE_PHASE_GRAPH", "REPAIR_DECLARATION", line))
 		}
 	}
