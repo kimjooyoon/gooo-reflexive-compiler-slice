@@ -34,6 +34,13 @@ func TestKebabStableActivityID(t *testing.T) {
 	}
 }
 
+func TestActivitySignatureRejectsExtraClosingDelimiter(t *testing.T) {
+	line := `activity ParseSource(SourceGraph)) -> ParsedSource computes "reflexive.normalize:v1;input=GOOO"`
+	if _, err := parseActivity(line, "reflexive"); err == nil {
+		t.Fatal("parseActivity accepted an extra closing delimiter")
+	}
+}
+
 func TestPhaseGraphSupportsLegacyAndSplitTopologies(t *testing.T) {
 	tests := []struct {
 		name         string

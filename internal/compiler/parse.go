@@ -607,13 +607,20 @@ func parseEntity(line string) (Declaration, error) {
 
 func parseActivity(line, namespace string) (Declaration, error) {
 	body := strings.TrimSpace(strings.TrimPrefix(line, "activity "))
-	left := strings.IndexByte(body, '(')
-	right := strings.IndexByte(body, ')')
-	if left < 1 || right < left || !strings.HasPrefix(strings.TrimSpace(body[right+1:]), "->") {
+	signature := body
+	if computes := strings.Index(body, " computes "); computes >= 0 {
+		signature = strings.TrimSpace(body[:computes])
+	}
+	left := strings.IndexByte(signature, '(')
+	right := strings.IndexByte(signature, ')')
+	if left < 1 || right < left || strings.Contains(signature[right+1:], ")") || !strings.HasPrefix(strings.TrimSpace(signature[right+1:]), "->") {
 		return Declaration{}, fmt.Errorf("activity signature is invalid")
 	}
-	name := body[:left]
-	parameterText := body[left+1 : right]
+	name := strings.TrimSpace(signature[:left])
+	parameterText := signature[left+1 : right]
+	if name == "" || strings.ContainsAny(name, " \t") || strings.Contains(parameterText, "(") {
+		return Declaration{}, fmt.Errorf("activity signature is invalid")
+	}
 	parameters := []string{}
 	if strings.TrimSpace(parameterText) != "" {
 		for _, value := range strings.Split(parameterText, ",") {
@@ -624,7 +631,7 @@ func parseActivity(line, namespace string) (Declaration, error) {
 			parameters = append(parameters, value)
 		}
 	}
-	tail := strings.TrimSpace(body[right+1:])
+	tail := strings.TrimSpace(signature[right+1:])
 	tail = strings.TrimSpace(strings.TrimPrefix(tail, "->"))
 	if computes := strings.Index(tail, " computes "); computes >= 0 {
 		tail = strings.TrimSpace(tail[:computes])
