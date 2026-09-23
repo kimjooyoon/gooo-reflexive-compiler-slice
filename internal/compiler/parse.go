@@ -124,6 +124,8 @@ func parsePhase(path string) (Phase, error) {
 				continue
 			}
 			phase.Activities = append(phase.Activities, activity)
+		default:
+			phase.GraphRefutations = append(phase.GraphRefutations, phaseRefutation("CHECK_DECLARATION_SET", "UNSUPPORTED_PHASE_DECLARATION", line))
 		}
 	}
 	if err := scanner.Err(); err != nil {
