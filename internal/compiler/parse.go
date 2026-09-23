@@ -124,6 +124,10 @@ func parsePhase(path string) (Phase, error) {
 				continue
 			}
 			phase.Activities = append(phase.Activities, activity)
+		case strings.HasPrefix(line, "gooo "), strings.HasPrefix(line, "package "), strings.HasPrefix(line, "namespace "), strings.HasPrefix(line, "entity "):
+			// Structural source declarations are carried alongside phase declarations.
+		default:
+			phase.GraphUnknowns = append(phase.GraphUnknowns, phaseUnknown("PARSE", "READ_DECLARATION", "UNSUPPORTED_DECLARATION", "PARSE_PHASE_GRAPH", "REPAIR_DECLARATION", line))
 		}
 	}
 	if err := scanner.Err(); err != nil {
